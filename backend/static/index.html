@@ -1,0 +1,1627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Santamon Signals Console</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            /* Colors */
+            --bg: #050915;
+            --panel: #0b1224;
+            --card: #0f172a;
+            --muted: #94a3b8;
+            --text: #e8ecf6;
+            --outline: #1d2941;
+            --accent: #7dd3fc;
+            --accent-2: #f5a524;
+            --critical: #ff5f56;
+            --high: #f97316;
+            --medium: #facc15;
+            --low: #36fba1;
+
+            /* Spacing scale */
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 12px;
+            --space-lg: 16px;
+            --space-xl: 24px;
+            --space-2xl: 32px;
+
+            /* Border radius */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 14px;
+            --radius-xl: 18px;
+
+            /* Transitions */
+            --transition-fast: 0.15s ease;
+            --transition-base: 0.2s ease;
+            --transition-slow: 0.3s ease;
+
+            /* Typography */
+            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.1), transparent 25%),
+                        radial-gradient(circle at 80% 0%, rgba(56, 189, 248, 0.12), transparent 25%),
+                        var(--bg);
+            color: var(--text);
+            font-family: 'Space Grotesk', 'DM Sans', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            line-height: 1.6;
+            padding: 28px 18px 40px;
+        }
+
+        .page {
+            max-width: 1320px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, rgba(13, 21, 44, 0.9), rgba(10, 17, 33, 0.95));
+            border: 1px solid var(--outline);
+            border-radius: 18px;
+            padding: 26px 26px 18px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            align-items: stretch;
+        }
+
+        .eyebrow {
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .lede {
+            color: var(--muted);
+            max-width: 720px;
+        }
+
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-top: 16px;
+            align-items: center;
+        }
+
+        .btn {
+            border: 1px solid var(--outline);
+            background: linear-gradient(135deg, #14213b, #0f172a);
+            color: var(--text);
+            padding: var(--space-sm) var(--space-lg);
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition-base);
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, #26b5ff, #127fbf);
+            border-color: rgba(38, 181, 255, 0.4);
+            color: #04101f;
+            box-shadow: 0 10px 30px rgba(38, 181, 255, 0.25);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .switch {
+            display: inline-flex;
+            align-items: center;
+            gap: var(--space-sm);
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.02);
+            padding: var(--space-sm) var(--space-sm);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--outline);
+        }
+
+        .switch input {
+            position: absolute;
+            opacity: 0;
+        }
+
+        .switch .slider {
+            position: relative;
+            width: 46px;
+            height: 24px;
+            border-radius: var(--radius-lg);
+            background: #1c2743;
+            transition: var(--transition-base);
+            display: inline-block;
+        }
+
+        .switch .slider::before {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #fff;
+            top: 3px;
+            left: 3px;
+            transition: var(--transition-base);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        }
+
+        .switch input:checked + .slider {
+            background: #22d3ee;
+        }
+
+        .switch input:checked + .slider::before {
+            transform: translateX(22px);
+        }
+
+        .switch-label {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .status-card {
+            border: 1px solid var(--outline);
+            background: linear-gradient(135deg, rgba(38, 181, 255, 0.08), rgba(20, 33, 59, 0.55));
+            border-radius: 14px;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .live-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--muted);
+            box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.45);
+            transition: 0.3s;
+        }
+
+        .live-dot.on {
+            background: #22d3ee;
+            animation: pulse 1.4s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.45); }
+            70% { box-shadow: 0 0 0 10px rgba(34, 211, 238, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+        }
+
+        .status-value {
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .small {
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-top: 18px;
+        }
+
+        .control {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        select, input {
+            background: #0d1327;
+            color: var(--text);
+            border: 1px solid var(--outline);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 14px;
+            outline: none;
+            transition: 0.2s ease;
+        }
+
+        select:focus, input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.15);
+        }
+
+        .btn:focus-visible, .small-btn:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .signal-summary:focus-visible {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
+            border-radius: 14px;
+        }
+
+        .switch:focus-within {
+            outline: 2px solid var(--accent);
+            outline-offset: 2px;
+        }
+
+        .stats-grid {
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--outline);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .hosts-panel {
+            margin-top: 20px;
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.06), rgba(15, 23, 42, 0.8));
+            border: 1px solid rgba(34, 211, 238, 0.25);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+        }
+
+        .hosts-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--outline);
+        }
+
+        .hosts-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            max-height: 180px;
+            overflow-y: auto;
+            padding: 2px;
+        }
+
+        .hosts-list::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .hosts-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.02);
+            border-radius: 10px;
+        }
+
+        .hosts-list::-webkit-scrollbar-thumb {
+            background: var(--outline);
+            border-radius: 10px;
+        }
+
+        .hosts-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(125, 211, 252, 0.3);
+        }
+
+        .host-card {
+            border: 1px solid var(--outline);
+            border-radius: 12px;
+            padding: 10px;
+            display: grid;
+            gap: 6px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+            transition: 0.2s ease;
+        }
+
+        .host-card:hover {
+            border-color: rgba(34, 211, 238, 0.5);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .host-id {
+            font-weight: 700;
+            font-size: 14px;
+            color: var(--text);
+            word-break: break-word;
+            font-family: var(--font-mono);
+        }
+
+        .host-meta {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        /* Base pill styles - shared by chip, tag, status-pill, host-pill */
+        .host-pill,
+        .chip,
+        .status-pill,
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius-sm);
+            background: rgba(255, 255, 255, 0.04);
+            white-space: nowrap;
+            transition: var(--transition-fast);
+        }
+
+        .host-pill {
+            padding: 2px var(--space-sm);
+            font-size: 11px;
+            line-height: 1.3;
+        }
+
+        .host-status {
+            color: var(--muted);
+            font-weight: 500;
+        }
+
+        .stat-label {
+            color: var(--muted);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .stat-value {
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        .stat-sub {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .ribbon {
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.04);
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--outline);
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .signals {
+            margin-top: 24px;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .signal-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .signal-card {
+            background: var(--card);
+            border: 1px solid var(--outline);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg) var(--space-lg);
+            position: relative;
+            cursor: default;
+            transition: var(--transition-base);
+            overflow: hidden;
+        }
+
+        .signal-card:hover {
+            border-color: rgba(125, 211, 252, 0.6);
+            transform: translateY(-1px);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        .signal-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            height: 100%;
+            width: 4px;
+            border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+            background: var(--accent);
+        }
+
+        .signal-card.critical::before { background: var(--critical); }
+        .signal-card.high::before { background: var(--high); }
+        .signal-card.medium::before { background: var(--medium); }
+        .signal-card.low::before { background: var(--low); }
+
+        .signal-summary {
+            display: grid;
+            grid-template-columns: 1.6fr auto;
+            gap: 12px;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .signal-heading {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .severity-pill {
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            flex-shrink: 0;
+        }
+
+        .severity-pill.critical { background: rgba(255, 95, 86, 0.15); color: var(--critical); }
+        .severity-pill.high { background: rgba(249, 115, 22, 0.15); color: var(--high); }
+        .severity-pill.medium { background: rgba(250, 204, 21, 0.18); color: var(--medium); }
+        .severity-pill.low { background: rgba(54, 251, 161, 0.14); color: #8fffd0; }
+
+        .signal-title {
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .signal-sub {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .meta-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: flex-start;
+            flex-wrap: wrap;
+        }
+
+        .chip {
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .chip strong {
+            color: var(--text);
+        }
+
+        .status-pill {
+            gap: var(--space-xs);
+            padding: var(--space-xs) var(--space-sm);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            color: var(--muted);
+        }
+
+        .status-pill.open {
+            border-color: rgba(125, 211, 252, 0.7);
+            color: #c8f1ff;
+            background: rgba(125, 211, 252, 0.18);
+            box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.12);
+        }
+
+        .status-pill.acknowledged {
+            border-color: rgba(245, 165, 36, 0.65);
+            color: #f5c542;
+            background: rgba(245, 165, 36, 0.18);
+            box-shadow: 0 0 0 1px rgba(245, 165, 36, 0.12);
+        }
+
+        .status-pill.resolved {
+            border-color: rgba(148, 163, 184, 0.35);
+            color: rgba(148, 163, 184, 0.9);
+            background: rgba(148, 163, 184, 0.1);
+        }
+
+        .tag-inline {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .chip.tag, .tag-inline .tag {
+            border-color: rgba(125, 211, 252, 0.3);
+            color: var(--text);
+            background: rgba(125, 211, 252, 0.08);
+        }
+
+        .expand {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        .action-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .details-actions {
+            margin-top: 10px;
+        }
+
+        .small-btn {
+            border: 1px solid var(--outline);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text);
+            padding: 6px 10px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: 0.15s ease;
+        }
+
+        .small-btn:hover {
+            border-color: rgba(125, 211, 252, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .small-btn.primary {
+            background: linear-gradient(135deg, #26b5ff, #127fbf);
+            border-color: rgba(38, 181, 255, 0.4);
+            color: #04101f;
+        }
+
+        .small-btn.muted {
+            color: var(--muted);
+        }
+
+        .signal-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease, opacity 0.2s ease;
+            opacity: 0;
+        }
+
+        .signal-card.open .signal-details {
+            max-height: 2000px;
+            opacity: 1;
+            margin-top: 12px;
+        }
+
+        .details-grid {
+            border-top: 1px solid var(--outline);
+            padding-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 14px;
+        }
+
+        .details-block {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--outline);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .details-block.full-span {
+            grid-column: 1 / -1;
+        }
+
+        .details-block.tight {
+            padding: 10px;
+            gap: 6px;
+        }
+
+        .block-title {
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .tag-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            padding: var(--space-xs) var(--space-sm);
+            background: #0c1324;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .context-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .context-item {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 8px;
+            align-items: start;
+        }
+
+        .context-key {
+            color: var(--muted);
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .context-value {
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 13px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #0d1327;
+            border: 1px solid var(--outline);
+            border-radius: var(--radius-sm);
+            padding: var(--space-sm) var(--space-sm);
+            max-height: 240px;
+            overflow: auto;
+        }
+
+        .description-text {
+            color: var(--text);
+            font-size: 14px;
+            line-height: 1.6;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--outline);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .json-block {
+            white-space: pre;
+            line-height: 1.5;
+        }
+
+        .process-graph {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 6px 2px;
+        }
+
+        .process-row {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            align-items: start;
+            position: relative;
+            padding-left: calc(var(--depth, 0) * 18px);
+        }
+
+        .process-connector {
+            position: relative;
+            width: 24px;
+            min-width: 24px;
+        }
+
+        .process-connector::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: -6px;
+            bottom: -6px;
+            width: 2px;
+            background: linear-gradient(to bottom, rgba(125, 211, 252, 0.5), rgba(125, 211, 252, 0.1));
+            border-radius: 1px;
+        }
+
+        .process-connector::after {
+            content: '→';
+            position: absolute;
+            left: 14px;
+            top: 6px;
+            color: rgba(125, 211, 252, 0.4);
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .process-connector.is-last::before {
+            bottom: 14px;
+            background: linear-gradient(to bottom, rgba(125, 211, 252, 0.7), rgba(125, 211, 252, 0.3));
+        }
+
+        .process-connector.is-last::after {
+            color: var(--accent);
+        }
+
+        .process-connector .connector-cap {
+            position: absolute;
+            left: 5px;
+            top: 7px;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--card);
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.15), 0 0 8px rgba(125, 211, 252, 0.3);
+        }
+
+        .process-row:first-child .process-connector::before {
+            top: 14px;
+        }
+
+        .process-meta {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--outline);
+            padding: 8px 10px;
+            border-radius: 10px;
+            white-space: normal;
+            word-break: break-word;
+            overflow: visible;
+            font-size: 12px;
+            display: grid;
+            gap: 4px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .process-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .process-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: rgba(125, 211, 252, 0.1);
+            border: 1px solid rgba(125, 211, 252, 0.35);
+            color: #9de5ff;
+            font-weight: 700;
+            font-size: 11px;
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .process-path {
+            color: var(--text);
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .process-extra {
+            color: var(--muted);
+            font-size: 11px;
+            margin-top: 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .process-args {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            margin-top: 2px;
+            color: var(--text);
+            background: #0d1327;
+            border: 1px dashed var(--outline);
+            border-radius: var(--radius-sm);
+            padding: var(--space-xs) var(--space-sm);
+        }
+
+        .loading, .empty-state, .error-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: var(--muted);
+        }
+
+        .spinner {
+            width: 46px;
+            height: 46px;
+            border-radius: 50%;
+            border: 4px solid var(--outline);
+            border-top-color: var(--accent);
+            margin: 0 auto 18px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--outline);
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .timestamp {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .loading-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            transition: width 0.3s ease;
+            z-index: 9999;
+            opacity: 0;
+        }
+
+        .loading-bar.active {
+            opacity: 1;
+            animation: loading 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; opacity: 0; }
+        }
+
+        @media (max-width: 900px) {
+            .hero-grid {
+                grid-template-columns: 1fr;
+            }
+            .signal-summary {
+                grid-template-columns: 1fr;
+            }
+            .meta-row {
+                justify-content: flex-start;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 16px 12px 24px;
+            }
+            .hero {
+                padding: 18px 18px 14px;
+            }
+            h1 {
+                font-size: 26px;
+            }
+            .controls {
+                grid-template-columns: 1fr;
+            }
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 10px;
+            }
+            .hosts-list {
+                grid-template-columns: 1fr;
+                max-height: 240px;
+            }
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 22px;
+            }
+            .hero-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .btn, .switch {
+                width: 100%;
+                justify-content: center;
+            }
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-bar" id="loading-bar"></div>
+    <div class="page">
+        <header class="hero">
+            <div class="hero-grid">
+                <div>
+                    <div class="eyebrow">Santamon</div>
+                    <h1>Signals Console</h1>
+                    <p class="lede">
+                        Live queue of detections shipping from your agents. Filter by severity or host, then
+                        expand a signal to see its context and process lineage.
+                    </p>
+                    <div class="hero-actions">
+                        <button class="btn primary" onclick="loadDashboard()">Refresh now</button>
+                        <label class="switch">
+                            <input type="checkbox" id="auto-refresh" onchange="toggleAutoRefresh()">
+                            <span class="slider"></span>
+                            <span class="switch-label">Auto-refresh (10s)</span>
+                        </label>
+                        <span class="pill" id="last-updated">Waiting for data…</span>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-row">
+                        <span class="live-dot" id="live-dot" role="status" aria-label="Connection status"></span>
+                        <div>
+                            <div class="muted">Queue</div>
+                            <div class="status-value" id="signal-count" aria-live="polite" aria-atomic="true">--</div>
+                        </div>
+                    </div>
+                    <p class="muted small">Most recent signals first. Click any card to open tags, context, and process tree.</p>
+                </div>
+            </div>
+            <div class="controls">
+                <div class="control">
+                    <label for="severity-filter">Severity</label>
+                    <select id="severity-filter" onchange="loadDashboard(false)">
+                        <option value="">All severities</option>
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="control">
+                    <label for="status-filter">Status</label>
+                    <select id="status-filter" onchange="loadDashboard(false)">
+                        <option value="open" selected>Open</option>
+                        <option value="acknowledged">Acknowledged</option>
+                        <option value="resolved">Resolved</option>
+                        <option value="all">All</option>
+                    </select>
+                </div>
+                <div class="control">
+                    <label for="host-filter">Agent / Host</label>
+                    <input id="host-filter" type="text" placeholder="Any host" onkeypress="handleFilterKey(event)">
+                </div>
+                <div class="control">
+                    <label for="search-filter">Detection name</label>
+                    <input id="search-filter" type="text" placeholder="Any detection" onkeypress="handleFilterKey(event)">
+                </div>
+                <div class="control">
+                    <label for="range-filter">Time window</label>
+                    <select id="range-filter" onchange="loadDashboard(false)">
+                        <option value="all">All time</option>
+                        <option value="1h">Last hour</option>
+                        <option value="24h" selected>Last 24h</option>
+                        <option value="72h">Last 72h</option>
+                    </select>
+                </div>
+                <div class="control">
+                    <label for="limit-filter">Results</label>
+                    <select id="limit-filter" onchange="loadDashboard(false)">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <section class="stats-grid" id="stats-cards">
+            <div class="stat-card">
+                <div class="stat-label">Overview</div>
+                <div class="stat-value">--</div>
+                <div class="stat-sub">Total signals stored</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Last 24h</div>
+                <div class="stat-value">--</div>
+                <div class="stat-sub">Recent signal volume</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Top host</div>
+                <div class="stat-value">--</div>
+                <div class="stat-sub">Leading chatterbox</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Critical/High</div>
+                <div class="stat-value">--</div>
+                <div class="stat-sub">Highest urgency signals</div>
+            </div>
+        </section>
+
+        <section class="hosts-panel">
+            <div class="hosts-header">
+                <div class="section-title">Live hosts</div>
+                <span class="muted small">Active agents with recent heartbeats</span>
+            </div>
+            <div id="hosts-container" class="hosts-list">
+                <div class="muted small">Loading hosts…</div>
+            </div>
+        </section>
+
+        <section class="signals">
+            <div class="section-title">Signal queue</div>
+            <div id="signals-container">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div>Loading signals...</div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let autoRefreshInterval = null;
+
+        function handleFilterKey(event) {
+            if (event.key === 'Enter') {
+                loadDashboard(false);
+            }
+        }
+
+        function buildQueryParams() {
+            const severity = document.getElementById('severity-filter').value;
+            const status = document.getElementById('status-filter').value || 'open';
+            const limit = document.getElementById('limit-filter').value || '100';
+            const host = document.getElementById('host-filter').value.trim();
+            const range = document.getElementById('range-filter').value;
+            const searchInput = document.getElementById('search-filter');
+            const detection = searchInput ? searchInput.value.trim() : '';
+
+            const params = new URLSearchParams({ limit });
+
+            if (severity) params.append('severity', severity);
+            if (status && status !== 'open') params.append('status', status);
+            if (host) params.append('host_id', host);
+            if (detection) params.append('search', detection);
+
+            if (range && range !== 'all') {
+                const hours = range === '1h' ? 1 : range === '24h' ? 24 : 72;
+                const since = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+                params.append('since', since);
+            }
+
+            return params;
+        }
+
+        async function loadDashboard(showSpinner = true) {
+            const container = document.getElementById('signals-container');
+            const loadingBar = document.getElementById('loading-bar');
+
+            // Show loading indicator
+            if (showSpinner) {
+                container.innerHTML = `
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <div>Loading signals...</div>
+                    </div>
+                `;
+            } else {
+                loadingBar.classList.add('active');
+            }
+
+            try {
+                const params = buildQueryParams();
+                const [signalsResponse, statsResponse, hostsResponse] = await Promise.all([
+                    fetch(`/signals?${params.toString()}`),
+                    fetch('/stats').catch(() => null),
+                    fetch('/agents').catch(() => null)
+                ]);
+
+                if (!signalsResponse.ok) {
+                    throw new Error('Failed to load signals');
+                }
+
+                const signalsData = await signalsResponse.json();
+                const statsData = statsResponse && statsResponse.ok ? await statsResponse.json() : null;
+
+                renderSignals(container, signalsData.signals || []);
+                renderStats(statsData);
+                renderHosts(hostsResponse && hostsResponse.ok ? await hostsResponse.json() : null);
+
+                const countText = `${signalsData.signals.length} signal${signalsData.signals.length === 1 ? '' : 's'}`;
+                document.getElementById('signal-count').textContent = countText;
+                document.getElementById('last-updated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
+            } catch (error) {
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="section-title">Could not load signals</div>
+                        <p class="muted">Failed to connect to the backend server. Please check your connection and try again.</p>
+                        <button class="btn primary" onclick="loadDashboard()" style="margin-top: 16px;">Retry</button>
+                    </div>
+                `;
+            } finally {
+                // Hide loading indicator
+                loadingBar.classList.remove('active');
+            }
+        }
+
+        function renderStats(stats) {
+            const statsRoot = document.getElementById('stats-cards');
+            if (!stats) {
+                statsRoot.innerHTML = `
+                    <div class="stat-card"><div class="stat-label">Overview</div><div class="stat-value">--</div><div class="stat-sub">Stats unavailable</div></div>
+                `;
+                return;
+            }
+
+            const severityOrder = ['critical', 'high', 'medium', 'low'];
+            const severityCounts = severityOrder.map(level => [level, stats.by_severity?.[level] || 0]);
+            const criticalHigh = (stats.by_severity?.critical || 0) + (stats.by_severity?.high || 0);
+
+            const topHostEntry = Object.entries(stats.by_host || {})
+                .sort((a, b) => b[1] - a[1])[0];
+            const topHost = topHostEntry ? `${topHostEntry[0]} (${topHostEntry[1]})` : '—';
+
+            statsRoot.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">Total</div>
+                    <div class="stat-value">${stats.total_signals}</div>
+                    <div class="stat-sub">Signals stored</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Last 24h</div>
+                    <div class="stat-value">${stats.last_24h}</div>
+                    <div class="stat-sub">Recent arrivals</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">By severity</div>
+                    <div class="tag-row">
+                        ${severityCounts.map(([level, count]) => `
+                            <span class="tag">${level.toUpperCase()}: <strong>${count}</strong></span>
+                        `).join('')}
+                    </div>
+                    <div class="stat-sub">Distribution across the queue</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Top host</div>
+                    <div class="stat-value">${topHost}</div>
+                    <div class="stat-sub">Critical/high: ${criticalHigh}</div>
+                </div>
+            `;
+        }
+
+        function formatUptime(seconds) {
+            if (!seconds || seconds < 0) return '';
+
+            const days = Math.floor(seconds / 86400);
+            const hours = Math.floor((seconds % 86400) / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+
+            if (days > 0) {
+                return `${days}d ${hours}h`;
+            } else if (hours > 0) {
+                return `${hours}h ${minutes}m`;
+            } else {
+                return `${minutes}m`;
+            }
+        }
+
+        function renderHosts(data) {
+            const hostsRoot = document.getElementById('hosts-container');
+            if (!hostsRoot) return;
+
+            const list = data && Array.isArray(data.heartbeats) ? data.heartbeats : [];
+            if (!list.length) {
+                hostsRoot.innerHTML = `<div class="muted small">No active agents with recent heartbeats.</div>`;
+                return;
+            }
+
+            hostsRoot.innerHTML = list.map(hb => {
+                const lastSeen = formatRelative(hb.received_at || hb.timestamp);
+                const version = hb.version ? `<span class="host-pill" title="Agent version">${escapeHtml(hb.version)}</span>` : '';
+                const os = hb.os_version ? `<span class="host-pill" title="Operating system">macOS ${escapeHtml(hb.os_version)}</span>` : '';
+                const uptime = hb.uptime_seconds ? `<span class="host-pill" title="Uptime">⏱ ${formatUptime(hb.uptime_seconds)}</span>` : '';
+                return `
+                    <div class="host-card">
+                        <div class="host-id" title="Agent ID">${escapeHtml(hb.agent_id || 'unknown')}</div>
+                        <div class="host-meta">
+                            <span class="host-status">Active • ${lastSeen}</span>
+                        </div>
+                        <div class="host-meta">
+                            ${version}${os}${uptime}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderSignals(container, signals) {
+            if (!signals || signals.length === 0) {
+                const statusFilter = document.getElementById('status-filter').value;
+                const hasActiveFilters = document.getElementById('severity-filter').value ||
+                                        document.getElementById('host-filter').value.trim() ||
+                                        document.getElementById('search-filter').value.trim();
+
+                const message = hasActiveFilters
+                    ? `No signals match your current filters. Try adjusting the severity, status, host, or detection filters above.`
+                    : statusFilter === 'resolved'
+                    ? `No resolved signals yet. Signals appear here after you mark them as resolved.`
+                    : `No signals detected yet. Your agents will send security events here when detections occur.`;
+
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="section-title">No signals found</div>
+                        <p class="muted">${message}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const cards = signals.map(signal => renderSignal(signal)).join('');
+            container.innerHTML = `<div class="signal-list">${cards}</div>`;
+        }
+
+        function renderSignal(signal) {
+            const severityClass = signal.severity || 'low';
+            const context = signal.context || {};
+            const ts = formatTimestamp(signal.ts);
+            const tags = Array.isArray(signal.tags) ? signal.tags : [];
+            const ruleName = signal.rule_name || signal.rule || '';
+            const ruleId = signal.rule_id || 'n/a';
+            const showRuleName = ruleName && ruleId && ruleName.toLowerCase() !== ruleId.toLowerCase();
+            const ruleLine = `${showRuleName ? `Rule: <strong>${escapeHtml(ruleName)}</strong> · ` : ''}Rule ID: ${escapeHtml(ruleId)} · Signal ID: ${escapeHtml(signal.signal_id || 'n/a')}`;
+            const description = signal.rule_description || '';
+            const status = (signal.status || 'open').toLowerCase();
+            const statusLabel = status.charAt(0).toUpperCase() + status.slice(1);
+            const isResolved = status === 'resolved';
+            const isAck = status === 'acknowledged';
+
+            return `
+                <article class="signal-card ${severityClass}" aria-expanded="false">
+                    <div class="signal-summary" role="button" tabindex="0" aria-label="Expand signal details for ${escapeHtml(signal.title || 'signal')}">
+                        <div class="signal-heading">
+                            <span class="severity-pill ${severityClass}">${signal.severity || 'unknown'}</span>
+                            <div>
+                                <div class="signal-title">${escapeHtml(signal.title || 'Untitled signal')}</div>
+                                <div class="signal-sub">${ruleLine}</div>
+                                ${tags.length ? `
+                                    <div class="tag-inline" aria-label="Tags">
+                                        ${tags.slice(0, 5).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+                                        ${tags.length > 5 ? `<span class="tag">+${tags.length - 5} more</span>` : ''}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="meta-row">
+                            <span class="status-pill ${status}">${escapeHtml(statusLabel)}</span>
+                            <span class="chip">Host: <strong>${escapeHtml(signal.host_id || 'unknown')}</strong></span>
+                            <span class="chip">Time: <span class="timestamp">${ts}</span></span>
+                            <span class="expand" aria-hidden="true">Details ▾</span>
+                        </div>
+                    </div>
+                    <div class="signal-details">
+                        <div class="details-grid">
+                            ${renderDescription(description)}
+                            ${renderContext(context)}
+                            ${context.process_tree ? renderProcessTree(context.process_tree) : ''}
+                        </div>
+                        <div class="action-row details-actions">
+                            ${!isResolved ? `
+                                ${!isAck ? `<button class="small-btn" data-action="update-status" data-signal-id="${escapeHtml(signal.signal_id)}" data-status="acknowledged">Acknowledge</button>` : ''}
+                                <button class="small-btn primary" data-action="update-status" data-signal-id="${escapeHtml(signal.signal_id)}" data-status="resolved">Resolve</button>
+                            ` : `
+                                <button class="small-btn" data-action="update-status" data-signal-id="${escapeHtml(signal.signal_id)}" data-status="open">Reopen</button>
+                            `}
+                        </div>
+                    </div>
+                </article>
+            `;
+        }
+
+        function renderContext(context) {
+            const excludeKeys = ['process_tree', 'rule_description'];
+            const entries = Object.entries(context || {}).filter(([key]) => !excludeKeys.includes(key));
+
+            if (!entries.length) return '';
+
+            const rows = entries.map(([key, value]) => {
+                if (value === null || value === undefined) {
+                    return `
+                        <div class="context-item">
+                            <div class="context-key">${escapeHtml(key)}</div>
+                            <div class="context-value">—</div>
+                        </div>
+                    `;
+                }
+
+                if (typeof value === 'object') {
+                    const json = formatJson(value);
+                    return `
+                        <div class="context-item">
+                            <div class="context-key">${escapeHtml(key)}</div>
+                            <pre class="context-value json-block">${escapeHtml(json)}</pre>
+                        </div>
+                    `;
+                }
+
+                const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
+
+                return `
+                    <div class="context-item">
+                        <div class="context-key">${escapeHtml(key)}</div>
+                        <div class="context-value">${escapeHtml(displayValue)}</div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="details-block tight full-span">
+                    <div class="block-title">Context</div>
+                    <div class="context-grid">
+                        ${rows}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDescription(description) {
+            if (!description) return '';
+
+            return `
+                <div class="details-block full-span">
+                    <div class="block-title">Description</div>
+                    <div class="description-text">${escapeHtml(description)}</div>
+                </div>
+            `;
+        }
+
+        function renderProcessTree(tree) {
+            if (!Array.isArray(tree) || tree.length === 0) return '';
+
+            /**
+             * Process tree visualization:
+             * - Shows process ancestry from oldest ancestor (top) to target process (bottom)
+             * - Depth values indicate distance from target (0 = target, higher = older ancestor)
+             * - Tree is inverted for display: highest depth shown first, descending to target
+             */
+
+            // Normalize nodes: ensure each has a depth value and preserve original order
+            const normalized = tree.map((node, idx) => ({
+                ...node,
+                depth: Number.isFinite(node.depth) ? node.depth : idx,
+                _idx: idx,  // Preserve original index for stable sorting
+            }));
+
+            // Find the deepest ancestor (will be shown at top)
+            const maxDepth = normalized.reduce((max, node) => Math.max(max, node.depth || 0), 0);
+
+            // Sort: oldest ancestors (highest depth) first, then by original order
+            const ordered = [...normalized].sort((a, b) => {
+                if (a.depth === b.depth) return a._idx - b._idx;
+                return b.depth - a.depth;  // Descending: highest depth first
+            });
+
+            const orderedList = ordered;
+
+            const graph = orderedList.map((node, idx) => {
+                const rawDepth = node.depth || 0;
+                // Calculate indentation: invert depth so target (depth=0) has max indent
+                const depth = Math.max(maxDepth - rawDepth, 0);
+                const args = Array.isArray(node.args) ? node.args.join(' ') : (node.args || '');
+                const pid = node.pid || '?';
+                const user = node.user || '?';
+                const isLast = idx === orderedList.length - 1;  // Target process
+                const relation = node.relation ? `<span class="process-badge" title="Process relationship">${escapeHtml(node.relation)}</span>` : '';
+
+                return `
+                    <div class="process-row" style="--depth:${depth}">
+                        <div class="process-connector ${isLast ? 'is-last' : ''}">${isLast ? '<span class="connector-cap" aria-hidden="true"></span>' : ''}</div>
+                        <div class="process-meta">
+                            <div class="process-header">
+                                ${relation}
+                                <div class="process-path">${escapeHtml(node.path || 'unknown')}</div>
+                            </div>
+                            <div class="process-extra">PID ${pid} · User ${escapeHtml(user)}</div>
+                            ${args ? `<div class="process-args">${escapeHtml(args)}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            return `
+                <div class="details-block tight full-span">
+                    <div class="block-title">Process Ancestry Tree (oldest ancestor → target)</div>
+                    <div class="process-graph">
+                        ${graph}
+                    </div>
+                </div>
+            `;
+        }
+
+        function toggleSignal(event, card) {
+            if (!card) return;
+            // Only toggle from summary click; ignore selection
+            if (window.getSelection && window.getSelection().toString()) {
+                return;
+            }
+            const isOpen = card.classList.toggle('open');
+            card.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        }
+
+        function formatTimestamp(ts) {
+            if (!ts) return '';
+            const date = new Date(ts);
+            if (Number.isNaN(date.getTime())) return ts;
+            return date.toLocaleString();
+        }
+
+        function formatJson(value) {
+            try {
+                return JSON.stringify(value, null, 2);
+            } catch (e) {
+                return String(value);
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : text;
+            return div.innerHTML;
+        }
+
+        function formatRelative(ts) {
+            if (!ts) return '';
+            const date = new Date(ts);
+            if (Number.isNaN(date.getTime())) return ts;
+            const diff = Date.now() - date.getTime();
+            if (diff < 0) return 'just now';
+            const minutes = Math.floor(diff / 60000);
+            if (minutes < 1) return 'just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            return `${days}d ago`;
+        }
+
+        function toggleAutoRefresh() {
+            const enabled = document.getElementById('auto-refresh').checked;
+            const dot = document.getElementById('live-dot');
+
+            if (enabled) {
+                dot.classList.add('on');
+                loadDashboard(false);
+                autoRefreshInterval = setInterval(() => loadDashboard(false), 10000);
+            } else {
+                dot.classList.remove('on');
+                if (autoRefreshInterval) {
+                    clearInterval(autoRefreshInterval);
+                    autoRefreshInterval = null;
+                }
+            }
+        }
+
+        async function updateSignalStatus(signalId, status) {
+            try {
+                await fetch(`/signals/${signalId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+                loadDashboard(false);
+            } catch (e) {
+                console.error('Failed to update status', e);
+                alert('Could not update signal status');
+            }
+        }
+
+        // Event delegation for signal cards
+        document.addEventListener('click', (e) => {
+            // Handle signal card expansion
+            const signalSummary = e.target.closest('.signal-summary');
+            if (signalSummary) {
+                const card = signalSummary.closest('.signal-card');
+                toggleSignal(e, card);
+                return;
+            }
+
+            // Handle status update buttons
+            if (e.target.matches('.small-btn[data-action="update-status"]')) {
+                e.stopPropagation();
+                const signalId = e.target.dataset.signalId;
+                const status = e.target.dataset.status;
+                updateSignalStatus(signalId, status);
+                return;
+            }
+
+            // Handle refresh button
+            if (e.target.matches('.btn.primary[onclick*="loadDashboard"]') ||
+                e.target.closest('.btn.primary[onclick*="loadDashboard"]')) {
+                loadDashboard();
+            }
+        });
+
+        // Event delegation for keyboard navigation
+        document.addEventListener('keypress', (e) => {
+            const signalSummary = e.target.closest('.signal-summary');
+            if (signalSummary && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                const card = signalSummary.closest('.signal-card');
+                toggleSignal(e, card);
+            }
+
+            // Handle filter inputs
+            if (e.target.matches('#host-filter, #search-filter') && e.key === 'Enter') {
+                loadDashboard(false);
+            }
+        });
+
+        // Event listeners for filter changes
+        document.addEventListener('change', (e) => {
+            if (e.target.matches('#severity-filter, #status-filter, #limit-filter, #range-filter')) {
+                loadDashboard(false);
+            }
+
+            if (e.target.id === 'auto-refresh') {
+                toggleAutoRefresh();
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => loadDashboard());
+    </script>
+</body>
+</html>

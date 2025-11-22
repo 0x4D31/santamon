@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadDisplayName</key>
+      <string>Santa Configuration</string>
+
+      <!-- Keep the same PayloadIdentifier so updates replace cleanly -->
+      <key>PayloadIdentifier</key>
+      <string>com.northpolesec.santa</string>
+
+      <key>PayloadType</key>
+      <string>com.northpolesec.santa</string>
+
+      <key>PayloadUUID</key>
+      <string>73FC1A4C-8FDC-4F26-8AF0-F8A4C2A1D123</string>
+
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+
+      <!-- ============ Telemetry ============ -->
+      <key>Telemetry</key>
+      <array>
+        <string>Execution</string>
+        <string>Disk</string>
+        <string>FileAccess</string>
+        <string>TCCModification</string>
+        <string>XProtect</string>
+        <string>LaunchItem</string>
+      </array>
+
+      <!-- ============ Protobuf Logging ============ -->
+      <key>EventLogType</key>
+      <string>protobuf</string>
+
+      <key>SpoolDirectory</key>
+      <string>/var/db/santa/spool</string>
+
+      <key>SpoolDirectoryFileSizeThresholdKB</key>
+      <integer>100</integer>
+
+      <key>SpoolDirectorySizeThresholdMB</key>
+      <integer>500</integer>
+
+      <key>SpoolDirectoryEventMaxFlushTimeSec</key>
+      <integer>10</integer>
+
+      <!-- ============ File-Access Authorization (FAA) ============ -->
+      <key>FileAccessPolicy</key>
+      <dict>
+        <key>Version</key>
+        <string>v1.0</string>
+
+        <key>WatchItems</key>
+        <dict>
+
+          <!-- Block non-browser access to Chrome cookie DB.
+               Allow Chrome itself and Spotlight worker. Log all blocks. -->
+          <key>ChromeCookies</key>
+          <dict>
+            <key>Paths</key>
+            <array>
+              <!-- Matches Default and any Profile X -->
+              <string>/Users/*/Library/Application Support/Google/Chrome/*/Cookies</string>
+            </array>
+
+            <key>Options</key>
+            <dict>
+              <!-- Block reads and writes -->
+              <key>AllowReadAccess</key><false/>
+              <key>AuditOnly</key><false/>
+              <!-- Keep UI quiet for blocked access -->
+              <key>EnableSilentMode</key><true/>
+              <key>EnableSilentTTYMode</key><true/>
+            </dict>
+
+            <key>Processes</key>
+            <array>
+              <!-- All Google Chrome binaries (TeamID) - allowed -->
+              <dict>
+                <key>TeamID</key><string>EQHXZ8M8AV</string>
+              </dict>
+              <!-- Spotlight indexer - allowed -->
+              <dict>
+                <key>PlatformBinary</key><true/>
+                <key>SigningID</key><string>com.apple.mdworker_shared</string>
+              </dict>
+            </array>
+          </dict>
+
+          <!-- Block non-browser access to Chromium-based "Comet" browser cookies.
+               No exceptions => block and log any process that touches it. -->
+          <key>CometCookies</key>
+          <dict>
+            <key>Paths</key>
+            <array>
+              <string>/Users/*/Library/Application Support/Comet/*/Cookies</string>
+            </array>
+            <key>Options</key>
+            <dict>
+              <key>AllowReadAccess</key><false/>
+              <key>AuditOnly</key><false/>
+              <key>EnableSilentMode</key><true/>
+              <key>EnableSilentTTYMode</key><true/>
+            </dict>
+          </dict>
+
+          <key>SSHPrivateKeys</key>
+          <dict>
+            <key>Paths</key>
+            <array>
+              <string>/Users/*/.ssh/id_ed25519</string>
+              <string>/Users/*/.ssh/id_*</string>
+            </array>
+            <key>Options</key>
+            <dict>
+              <key>AllowReadAccess</key><false/>
+              <key>AuditOnly</key><true/>
+              <key>EnableSilentMode</key><true/>
+              <key>EnableSilentTTYMode</key><true/>
+            </dict>
+            <key>Processes</key>
+            <array>
+              <dict>
+                <key>PlatformBinary</key><true/>
+                <key>SigningID</key><string>ssh</string>
+              </dict>
+            </array>
+          </dict>
+
+          <!-- Chrome saved passwords / logins (Login Data SQLite DB).
+               Restrict to Chrome itself via TeamID; everything else is "interesting". -->
+          <key>BrowserPasswords</key>
+          <dict>
+            <key>Paths</key>
+            <array>
+              <!-- Default + any profile: Login Data password store -->
+              <string>/Users/*/Library/Application Support/Google/Chrome/*/Login Data</string>
+            </array>
+            <key>Options</key>
+            <dict>
+              <key>AllowReadAccess</key><false/>
+              <key>AuditOnly</key><true/>
+              <key>EnableSilentMode</key><true/>
+              <key>EnableSilentTTYMode</key><true/>
+            </dict>
+            <key>Processes</key>
+            <array>
+              <!-- Chrome itself (TeamID) is allowed; others show up as FAA events -->
+              <dict>
+                <key>TeamID</key><string>EQHXZ8M8AV</string>
+              </dict>
+            </array>
+          </dict>
+
+          <!-- User keychain database(s).
+               Broad but high-value: login.keychain-db and any .keychain-db in the user Keychains folder. -->
+          <key>KeychainDB</key>
+          <dict>
+            <key>Paths</key>
+            <array>
+              <!-- Default login keychain -->
+              <string>/Users/*/Library/Keychains/login.keychain-db</string>
+              <!-- Any other user keychains (e.g. iCloud, custom) -->
+              <string>/Users/*/Library/Keychains/*.keychain-db</string>
+            </array>
+            <key>Options</key>
+            <dict>
+              <key>AllowReadAccess</key><false/>
+              <key>AuditOnly</key><true/>
+              <key>EnableSilentMode</key><true/>
+              <key>EnableSilentTTYMode</key><true/>
+            </dict>
+            <!-- You *could* add explicit PlatformBinary exceptions (securityd, etc.)
+                 if this is too chatty, but for a home lab + AUDIT_ONLY this is fine. -->
+          </dict>
+
+        </dict> <!-- /WatchItems -->
+      </dict>   <!-- /FileAccessPolicy -->
+
+      <!-- Faster refresh while testing (default is 600) -->
+      <key>FileAccessPolicyUpdateIntervalSec</key>
+      <integer>60</integer>
+    </dict>
+  </array>
+
+  <key>PayloadDisplayName</key>
+  <string>Santa</string>
+
+  <key>PayloadIdentifier</key>
+  <string>santa-config</string>
+
+  <key>PayloadType</key>
+  <string>Configuration</string>
+
+  <key>PayloadUUID</key>
+  <string>A1B2C3D4-E5F6-7890-ABCD-EF1234567890</string>
+
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+
+  <key>PayloadScope</key>
+  <string>System</string>
+</dict>
+</plist>

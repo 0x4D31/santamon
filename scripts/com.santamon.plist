@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+ "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.santamon.agent</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/local/bin/santamon</string>
+    <string>run</string>
+    <string>--config=/etc/santamon/config.yaml</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/var/log/santamon.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/var/log/santamon.log</string>
+
+  <key>WorkingDirectory</key>
+  <string>/var/lib/santamon</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SANTAMON_API_KEY</key>
+    <string>YOUR_API_KEY_HERE</string>
+  </dict>
+</dict>
+</plist>

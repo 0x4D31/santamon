@@ -1,0 +1,52 @@
+# Santamon Configuration
+
+agent:
+  id: "${HOSTNAME}"
+  state_dir: "/var/lib/santamon"
+  log_level: "info"
+
+santa:
+  mode: "protobuf"
+  spool_dir: "/var/db/santa/spool"
+  stability_wait: "2s"
+
+rules:
+  # Can be a file or directory. If directory, recursively loads all .yaml/.yml files
+  # and merges them (useful for multi-file rule organization).
+  path: "/etc/santamon/rules.yaml"
+  reload_on: "SIGHUP"  # Send SIGHUP signal to reload rules without restarting
+
+state:
+  db_path: "/var/lib/santamon/state.db"
+  sync_writes: true
+  compact_interval: "24h"
+
+  first_seen:
+    max_entries: 10000
+    eviction: "lru"
+
+  windows:
+    gc_interval: "1m"
+    max_events: 1000
+
+shipper:
+  endpoint: "https://localhost:8443/ingest"
+  api_key: "${SANTAMON_API_KEY}"
+
+  tls_skip_verify: false
+
+  batch_size: 100
+  flush_interval: "30s"
+  flush_on_enqueue: true
+  timeout: "10s"
+
+  # Agent heartbeat for health monitoring
+  heartbeat:
+    enabled: true
+    interval: "30s"
+
+  retry:
+    max_attempts: 3
+    backoff: "exponential"
+    initial: "1s"
+    max: "30s"

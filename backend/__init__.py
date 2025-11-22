@@ -1,0 +1,1 @@
+"""Santamon backend package."""

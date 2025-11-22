@@ -1,0 +1,20 @@
+agent:
+  id: "test-agent"
+  state_dir: "/tmp/santamon"
+
+santa:
+  mode: "json"
+  spool_dir: "/var/db/santa/spool"
+
+rules:
+  path: "/etc/santamon/rules.yaml"
+
+state:
+  db_path: "/tmp/santamon/state.db"
+  first_seen:
+    max_entries: 10000
+
+shipper:
+  endpoint: "http://remote.example.com/ingest"  # Should fail - HTTP to remote host
+  api_key: "test-secret-key-1234567890"
+  batch_size: 100
