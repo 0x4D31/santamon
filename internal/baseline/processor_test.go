@@ -5,7 +5,6 @@ import (
 	"time"
 
 	santapb "buf.build/gen/go/northpolesec/protos/protocolbuffers/go/telemetry"
-	"github.com/0x4d31/santamon/internal/events"
 	"github.com/0x4d31/santamon/internal/rules"
 	"github.com/0x4d31/santamon/internal/state"
 	"google.golang.org/protobuf/proto"
@@ -33,10 +32,8 @@ func TestProcessNoBaselines(t *testing.T) {
 	engine, _ := rules.NewEngine()
 
 	msg := createTestMessage(t, "DECISION_UNKNOWN")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err := proc.Process(msg, eventMap, nil, engine)
+	matches, err := proc.Process(msg, nil, engine)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -69,11 +66,9 @@ func TestProcessFirstOccurrence(t *testing.T) {
 	}
 
 	msg := createTestMessage(t, "DECISION_UNKNOWN")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
 	// First occurrence should match
-	matches, err := proc.Process(msg, eventMap, []*rules.CompiledBaseline{compiled}, engine)
+	matches, err := proc.Process(msg, []*rules.CompiledBaseline{compiled}, engine)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -123,11 +118,9 @@ func TestProcessSecondOccurrence(t *testing.T) {
 	}
 
 	msg := createTestMessage(t, "DECISION_UNKNOWN")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
 	// First occurrence
-	matches1, err := proc.Process(msg, eventMap, []*rules.CompiledBaseline{compiled}, engine)
+	matches1, err := proc.Process(msg, []*rules.CompiledBaseline{compiled}, engine)
 	if err != nil {
 		t.Fatalf("First process failed: %v", err)
 	}
@@ -136,7 +129,7 @@ func TestProcessSecondOccurrence(t *testing.T) {
 	}
 
 	// Second occurrence with same pattern should NOT match
-	matches2, err := proc.Process(msg, eventMap, []*rules.CompiledBaseline{compiled}, engine)
+	matches2, err := proc.Process(msg, []*rules.CompiledBaseline{compiled}, engine)
 	if err != nil {
 		t.Fatalf("Second process failed: %v", err)
 	}
@@ -169,10 +162,8 @@ func TestProcessLearningPeriod(t *testing.T) {
 	}
 
 	msg := createTestMessage(t, "DECISION_UNKNOWN")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err := proc.Process(msg, eventMap, []*rules.CompiledBaseline{compiled}, engine)
+	matches, err := proc.Process(msg, []*rules.CompiledBaseline{compiled}, engine)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -212,10 +203,8 @@ func TestProcessMultipleTrackFields(t *testing.T) {
 	}
 
 	msg := createTestMessage(t, "DECISION_UNKNOWN")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err := proc.Process(msg, eventMap, []*rules.CompiledBaseline{compiled}, engine)
+	matches, err := proc.Process(msg, []*rules.CompiledBaseline{compiled}, engine)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -245,7 +234,7 @@ func TestProcessFilterNotMatching(t *testing.T) {
 	baseline := &rules.BaselineRule{
 		ID:       "TEST-005",
 		Title:    "Non-matching filter",
-		Expr:     `kind == "execution" && execution.target.executable.path == "/nonexistent"`,
+		Expr:     `kind == "execution" && event.execution.target.executable.path == "/nonexistent"`,
 		Track:    []string{"execution.target.executable.path"},
 		Severity: "high",
 		Tags:     []string{"test"},
@@ -258,10 +247,8 @@ func TestProcessFilterNotMatching(t *testing.T) {
 	}
 
 	msg := createTestMessage(t, "DECISION_UNKNOWN")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err := proc.Process(msg, eventMap, []*rules.CompiledBaseline{compiled}, engine)
+	matches, err := proc.Process(msg, []*rules.CompiledBaseline{compiled}, engine)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -375,10 +362,8 @@ func TestProcessMultipleBaselines(t *testing.T) {
 	}
 
 	msg := createTestMessage(t, "DECISION_UNKNOWN")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err := proc.Process(msg, eventMap, []*rules.CompiledBaseline{compiled1, compiled2}, engine)
+	matches, err := proc.Process(msg, []*rules.CompiledBaseline{compiled1, compiled2}, engine)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}

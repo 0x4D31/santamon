@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	santapb "buf.build/gen/go/northpolesec/protos/protocolbuffers/go/telemetry"
-	"github.com/0x4d31/santamon/internal/events"
 	"github.com/0x4d31/santamon/internal/rules"
 	"github.com/0x4d31/santamon/internal/state"
 )
@@ -44,11 +43,9 @@ func TestProcessNoCorrelations(t *testing.T) {
 
 	wm := NewWindowManager(db, 100, time.Minute)
 	msg := createTestMessage("test-machine", "DECISION_DENY")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
 	// Empty correlations
-	matches, err := wm.Process(msg, eventMap, []*rules.CompiledCorrelation{})
+	matches, err := wm.Process(msg, []*rules.CompiledCorrelation{})
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -76,7 +73,7 @@ func TestProcessSimpleThreshold(t *testing.T) {
 			{
 				ID:        "TEST-CORR-001",
 				Title:     "Repeated denials",
-				Expr:      "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:      "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				Window:    5 * time.Minute,
 				Threshold: 3,
 				Severity:  "high",
@@ -95,10 +92,8 @@ func TestProcessSimpleThreshold(t *testing.T) {
 	// Send 2 events - should not trigger
 	for i := 0; i < 2; i++ {
 		msg := createTestMessage("machine-1", "DECISION_DENY")
-		eventMap, _ := events.ToMap(msg)
-		events.BuildActivation(msg, eventMap)
 
-		matches, err := wm.Process(msg, eventMap, correlations)
+		matches, err := wm.Process(msg, correlations)
 		if err != nil {
 			t.Fatalf("Process failed: %v", err)
 		}
@@ -109,10 +104,8 @@ func TestProcessSimpleThreshold(t *testing.T) {
 
 	// Send 3rd event - should trigger
 	msg := createTestMessage("machine-1", "DECISION_DENY")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err := wm.Process(msg, eventMap, correlations)
+	matches, err := wm.Process(msg, correlations)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -136,10 +129,8 @@ func TestProcessSimpleThreshold(t *testing.T) {
 
 	// Send 4th event - should not trigger (window was cleared after match)
 	msg = createTestMessage("machine-1", "DECISION_DENY")
-	eventMap, _ = events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err = wm.Process(msg, eventMap, correlations)
+	matches, err = wm.Process(msg, correlations)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -166,7 +157,7 @@ func TestProcessGroupBy(t *testing.T) {
 			{
 				ID:    "TEST-GROUP-001",
 				Title: "Grouped by hash and user",
-				Expr:  "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:  "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				GroupBy: []string{
 					"execution.target.executable.hash.hash",
 					"execution.instigator.effective_user.name",
@@ -202,10 +193,8 @@ func TestProcessGroupBy(t *testing.T) {
 
 	for i, tc := range testCases {
 		msg := createTestMessageWithHashUser(tc.hash, tc.user)
-		eventMap, _ := events.ToMap(msg)
-		events.BuildActivation(msg, eventMap)
 
-		matches, err := wm.Process(msg, eventMap, correlations)
+		matches, err := wm.Process(msg, correlations)
 		if err != nil {
 			t.Fatalf("case %d: Process failed: %v", i, err)
 		}
@@ -248,7 +237,7 @@ func TestProcessCountDistinct(t *testing.T) {
 			{
 				ID:            "TEST-DISTINCT-001",
 				Title:         "Multiple binaries blocked",
-				Expr:          "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:          "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				Window:        5 * time.Minute,
 				CountDistinct: "execution.target.executable.hash.hash",
 				Threshold:     3,
@@ -278,10 +267,8 @@ func TestProcessCountDistinct(t *testing.T) {
 
 	for i, tc := range testCases {
 		msg := createTestMessageWithHashUser(tc.hash, "user1")
-		eventMap, _ := events.ToMap(msg)
-		events.BuildActivation(msg, eventMap)
 
-		matches, err := wm.Process(msg, eventMap, correlations)
+		matches, err := wm.Process(msg, correlations)
 		if err != nil {
 			t.Fatalf("case %d: Process failed: %v", i, err)
 		}
@@ -318,7 +305,7 @@ func TestProcessWindowExpiration(t *testing.T) {
 			{
 				ID:        "TEST-WINDOW-001",
 				Title:     "Short window test",
-				Expr:      "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:      "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				Window:    100 * time.Millisecond, // Very short window
 				Threshold: 3,
 				Severity:  "low",
@@ -336,10 +323,8 @@ func TestProcessWindowExpiration(t *testing.T) {
 	// Send 2 events
 	for i := 0; i < 2; i++ {
 		msg := createTestMessage("machine-1", "DECISION_DENY")
-		eventMap, _ := events.ToMap(msg)
-		events.BuildActivation(msg, eventMap)
 
-		matches, err := wm.Process(msg, eventMap, correlations)
+		matches, err := wm.Process(msg, correlations)
 		if err != nil {
 			t.Fatalf("Process failed: %v", err)
 		}
@@ -353,10 +338,8 @@ func TestProcessWindowExpiration(t *testing.T) {
 
 	// Send 3rd event - should NOT trigger because previous events expired
 	msg := createTestMessage("machine-1", "DECISION_DENY")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
 
-	matches, err := wm.Process(msg, eventMap, correlations)
+	matches, err := wm.Process(msg, correlations)
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
@@ -382,7 +365,7 @@ func TestProcessPrunesExpiredStoredEvents(t *testing.T) {
 			{
 				ID:        "TEST-PRUNE-001",
 				Title:     "Prune expired",
-				Expr:      "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:      "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				Window:    150 * time.Millisecond,
 				Threshold: 5,
 				Severity:  "low",
@@ -399,9 +382,7 @@ func TestProcessPrunesExpiredStoredEvents(t *testing.T) {
 
 	// First event enters the window
 	msg := createTestMessageWithPath("/bin/old", "DECISION_DENY")
-	eventMap, _ := events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
-	if _, err := wm.Process(msg, eventMap, correlations); err != nil {
+	if _, err := wm.Process(msg, correlations); err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
 
@@ -410,9 +391,7 @@ func TestProcessPrunesExpiredStoredEvents(t *testing.T) {
 
 	// Second event should replace stored state with only recent events
 	msg = createTestMessageWithPath("/bin/new", "DECISION_DENY")
-	eventMap, _ = events.ToMap(msg)
-	events.BuildActivation(msg, eventMap)
-	if _, err := wm.Process(msg, eventMap, correlations); err != nil {
+	if _, err := wm.Process(msg, correlations); err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
 
@@ -445,7 +424,7 @@ func TestProcessBoundsStoredEvents(t *testing.T) {
 			{
 				ID:        "TEST-BOUNDS-001",
 				Title:     "Bound stored events",
-				Expr:      "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:      "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				Window:    5 * time.Minute,
 				Threshold: 10,
 				Severity:  "medium",
@@ -464,9 +443,7 @@ func TestProcessBoundsStoredEvents(t *testing.T) {
 	paths := []string{"/bin/one", "/bin/two", "/bin/three"}
 	for _, p := range paths {
 		msg := createTestMessageWithPath(p, "DECISION_DENY")
-		eventMap, _ := events.ToMap(msg)
-		events.BuildActivation(msg, eventMap)
-		if _, err := wm.Process(msg, eventMap, correlations); err != nil {
+		if _, err := wm.Process(msg, correlations); err != nil {
 			t.Fatalf("Process failed: %v", err)
 		}
 	}
@@ -512,7 +489,7 @@ func TestProcessFilterExpression(t *testing.T) {
 			{
 				ID:        "TEST-FILTER-001",
 				Title:     "Denials from /tmp",
-				Expr:      "kind == \"execution\" && execution.decision == \"DECISION_DENY\" && execution.target.executable.path.startsWith(\"/tmp/\")",
+				Expr:      "kind == \"execution\" && event.execution.decision == DECISION_DENY && event.execution.target.executable.path.startsWith(\"/tmp/\")",
 				Window:    5 * time.Minute,
 				Threshold: 2,
 				Severity:  "critical",
@@ -542,10 +519,8 @@ func TestProcessFilterExpression(t *testing.T) {
 	matchFound := false
 	for i, tc := range testCases {
 		msg := createTestMessageWithPath(tc.path, tc.decision)
-		eventMap, _ := events.ToMap(msg)
-		events.BuildActivation(msg, eventMap)
 
-		matches, err := wm.Process(msg, eventMap, correlations)
+		matches, err := wm.Process(msg, correlations)
 		if err != nil {
 			t.Fatalf("case %d: Process failed: %v", i, err)
 		}
@@ -584,7 +559,7 @@ func TestProcessMultipleCorrelations(t *testing.T) {
 			{
 				ID:        "CORR-DENY",
 				Title:     "Multiple denials",
-				Expr:      "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:      "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				Window:    5 * time.Minute,
 				Threshold: 2,
 				Severity:  "high",
@@ -593,7 +568,7 @@ func TestProcessMultipleCorrelations(t *testing.T) {
 			{
 				ID:        "CORR-ALLOW",
 				Title:     "Multiple allows",
-				Expr:      "kind == \"execution\" && execution.decision == \"DECISION_ALLOW\"",
+				Expr:      "kind == \"execution\" && event.execution.decision == DECISION_ALLOW",
 				Window:    5 * time.Minute,
 				Threshold: 2,
 				Severity:  "low",
@@ -621,10 +596,8 @@ func TestProcessMultipleCorrelations(t *testing.T) {
 
 	for i, decision := range decisions {
 		msg := createTestMessage("machine-1", decision)
-		eventMap, _ := events.ToMap(msg)
-		events.BuildActivation(msg, eventMap)
 
-		matches, err := wm.Process(msg, eventMap, correlations)
+		matches, err := wm.Process(msg, correlations)
 		if err != nil {
 			t.Fatalf("iteration %d: Process failed: %v", i, err)
 		}

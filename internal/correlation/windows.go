@@ -43,16 +43,25 @@ func NewWindowManager(db *state.DB, maxEvents int, gcInterval time.Duration) *Wi
 }
 
 // Process evaluates an event against correlation rules.
-// The eventMap must already have BuildActivation called on it.
-func (wm *WindowManager) Process(msg *santapb.SantaMessage, eventMap map[string]any, correlationRules []*rules.CompiledCorrelation) ([]*WindowMatch, error) {
+func (wm *WindowManager) Process(msg *santapb.SantaMessage, correlationRules []*rules.CompiledCorrelation) ([]*WindowMatch, error) {
 	if len(correlationRules) == 0 {
 		return nil, nil
 	}
 
+	// Build typed activation with enum constants for CEL evaluation
+	activation := rules.BuildActivation(msg)
+
+	// Build event map for storage and grouping (correlation windows still use maps)
+	eventMap, err := events.ToMap(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert message to map: %w", err)
+	}
+	events.BuildActivation(msg, eventMap)
+
 	matches := make([]*WindowMatch, 0, 1) // Most events won't trigger correlations
 
 	for _, rule := range correlationRules {
-		result, _, err := rule.Program.Eval(eventMap)
+		result, _, err := rule.Program.Eval(activation)
 		if err != nil {
 			slog.Warn("correlation filter evaluation error", "rule_id", rule.Rule.ID, "error", err)
 			continue

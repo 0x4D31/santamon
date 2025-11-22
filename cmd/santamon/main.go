@@ -442,15 +442,6 @@ func runCommand() {
 			for _, msg := range messages {
 				eventCount++
 
-				// Convert protobuf to map
-				eventMap, err := events.ToMap(msg)
-				if err != nil {
-					log.Printf("Failed to map event: %v", err)
-					continue
-				}
-
-				// Enrich eventMap with metadata for CEL evaluation (done ONCE per event)
-				events.BuildActivation(msg, eventMap)
 
 				// Update process lineage store for execution events, when enabled
 				if lineageStore != nil {
@@ -460,7 +451,7 @@ func runCommand() {
 				}
 
 				// Evaluate simple rules
-				matches, err := engine.Evaluate(eventMap, msg)
+				matches, err := engine.Evaluate(msg)
 				if err != nil {
 					log.Printf("Rule evaluation error: %v", err)
 					continue
@@ -492,10 +483,10 @@ func runCommand() {
 					}
 				}
 
-				// Evaluate correlation rules (reuses the same eventMap with activation data)
+				// Evaluate correlation rules
 				correlations := engine.GetCorrelations()
 				if len(correlations) > 0 {
-					windowMatches, err := windowMgr.Process(msg, eventMap, correlations)
+					windowMatches, err := windowMgr.Process(msg, correlations)
 					if err != nil {
 						log.Printf("Correlation processing error: %v", err)
 						continue
@@ -513,10 +504,10 @@ func runCommand() {
 					}
 				}
 
-				// Evaluate baseline rules (reuses the same eventMap with activation data)
+				// Evaluate baseline rules
 				baselines := engine.GetBaselines()
 				if len(baselines) > 0 {
-					baselineMatches, err := baselineProc.Process(msg, eventMap, baselines, engine)
+					baselineMatches, err := baselineProc.Process(msg, baselines, engine)
 					if err != nil {
 						logutil.Error("Baseline processing error: %v", err)
 						continue

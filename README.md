@@ -202,23 +202,23 @@ rules:
       Non-terminal, non-package-manager process launching curl or wget.
     expr: |
       kind == "execution" &&
-      execution.target.executable.path in ["/usr/bin/curl", "/usr/bin/wget"] &&
+      event.execution.target.executable.path in ["/usr/bin/curl", "/usr/bin/wget"] &&
 
       // Exclude interactive shells
       !(
-        execution.instigator.executable.path.startsWith("/bin/bash") ||
-        execution.instigator.executable.path.startsWith("/bin/zsh") ||
-        execution.instigator.executable.path.startsWith("/bin/sh")
+        event.execution.instigator.executable.path.startsWith("/bin/bash") ||
+        event.execution.instigator.executable.path.startsWith("/bin/zsh") ||
+        event.execution.instigator.executable.path.startsWith("/bin/sh")
       ) &&
 
       // Exclude Homebrew / package-manager helpers that legitimately use curl frequently
       !(
-        execution.instigator.executable.path.startsWith("/opt/homebrew/") ||
-        execution.instigator.executable.path.contains("/Homebrew/")
+        event.execution.instigator.executable.path.startsWith("/opt/homebrew/") ||
+        event.execution.instigator.executable.path.contains("/Homebrew/")
       )
     severity: high
     tags: ["T1105", "command-and-control"]
-    extra_context: ["execution.args"]
+    extra_context: ["event.execution.args"]
     include_process_tree: true
     enabled: true
 ```
@@ -235,13 +235,13 @@ correlations:
     description: "Single process accessing 3+ credential stores within 5 minutes."
     expr: |
       kind == "file_access" &&
-      file_access.policy_name in [
+      event.file_access.policy_name in [
         "ChromeCookies", "CometCookies", "SSHPrivateKeys",
         "BrowserPasswords", "KeychainDB"
       ]
     window: "5m"
-    group_by: ["file_access.instigator.executable.path"]
-    count_distinct: "file_access.policy_name"
+    group_by: ["event.file_access.instigator.executable.path"]
+    count_distinct: "event.file_access.policy_name"
     threshold: 3
     severity: critical
     tags: ["T1539", "T1552", "credential-access"]
@@ -260,14 +260,14 @@ baselines:
     description: "First time an unsigned binary executes from /Users paths."
     expr: |
       kind == "execution" &&
-      execution.decision == "DECISION_ALLOW" &&
-      execution.target.executable.path.startsWith("/Users/") &&
+      event.execution.decision == DECISION_ALLOW &&
+      event.execution.target.executable.path.startsWith("/Users/") &&
       (
-        execution.target.code_signature == null ||
-        !has(execution.target.code_signature.team_id) ||
-        execution.target.code_signature.team_id == ""
+        !has(event.execution.target.code_signature) ||
+        !has(event.execution.target.code_signature.team_id) ||
+        event.execution.target.code_signature.team_id == ""
       )
-    track: ["execution.target.executable.cdhash"]
+    track: ["event.execution.target.executable.cdhash"]
     learning_period: "720h"
     severity: high
     tags: ["T1204.002", "initial-access"]

@@ -26,7 +26,6 @@ type BaselineMatch struct {
 	Description string
 	Pattern     string // The unique pattern that was seen
 	Message     *santapb.SantaMessage
-	EventMap    map[string]any
 	Timestamp   time.Time
 	InLearning  bool // Whether this occurred during learning period
 }
@@ -39,10 +38,8 @@ func NewProcessor(db *state.DB) *Processor {
 }
 
 // Process evaluates an event against baseline rules.
-// The eventMap must already have BuildActivation called on it.
 func (p *Processor) Process(
 	msg *santapb.SantaMessage,
-	eventMap map[string]any,
 	baselines []*rules.CompiledBaseline,
 	engine *rules.Engine,
 ) ([]*BaselineMatch, error) {
@@ -50,11 +47,14 @@ func (p *Processor) Process(
 		return nil, nil
 	}
 
+	// Build typed activation with enum constants
+	activation := rules.BuildActivation(msg)
+
 	matches := make([]*BaselineMatch, 0, 1) // Most events won't match
 
 	for _, baseline := range baselines {
 		// Evaluate filter expression
-		result, _, err := baseline.Program.Eval(eventMap)
+		result, _, err := baseline.Program.Eval(activation)
 		if err != nil {
 			slog.Warn("baseline filter evaluation error", "rule_id", baseline.Rule.ID, "error", err)
 			continue
@@ -71,7 +71,7 @@ func (p *Processor) Process(
 		}
 
 		// Extract pattern to track
-		pattern := p.extractPattern(eventMap, baseline.Rule.Track)
+		pattern := p.extractPattern(activation, baseline.Rule.Track)
 
 		// Check if we've seen this pattern before
 		isFirst, err := p.db.IsFirstSeen(baseline.Rule.ID, pattern)
@@ -96,7 +96,6 @@ func (p *Processor) Process(
 				Description: baseline.Rule.Description,
 				Pattern:     pattern,
 				Message:     msg,
-				EventMap:    eventMap,
 				Timestamp:   events.EventTime(msg),
 				InLearning:  inLearning,
 			})

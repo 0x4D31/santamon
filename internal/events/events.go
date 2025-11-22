@@ -304,6 +304,26 @@ func EventTime(msg *santapb.SantaMessage) time.Time {
 	return time.Time{}
 }
 
+// DecodedArgs returns decoded args for execution events, empty list otherwise.
+// Args from Santa are already decoded as [][]byte, so we just convert to []string.
+func DecodedArgs(msg *santapb.SantaMessage) []string {
+	ev, ok := msg.GetEvent().(*santapb.SantaMessage_Execution)
+	if !ok {
+		return []string{}
+	}
+
+	args := ev.Execution.GetArgs()
+	if len(args) == 0 {
+		return []string{}
+	}
+
+	decoded := make([]string, len(args))
+	for i, arg := range args {
+		decoded[i] = string(arg)
+	}
+	return decoded
+}
+
 func decodeExecutionStringLists(m map[string]any) {
 	execRaw, ok := m["execution"].(map[string]any)
 	if !ok {

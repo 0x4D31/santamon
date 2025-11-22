@@ -8,7 +8,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	santapb "buf.build/gen/go/northpolesec/protos/protocolbuffers/go/telemetry"
-	"github.com/0x4d31/santamon/internal/events"
 )
 
 func TestNewEngine(t *testing.T) {
@@ -50,7 +49,7 @@ func TestLoadRules(t *testing.T) {
 					{
 						ID:       "TEST-001",
 						Title:    "Test Rule",
-						Expr:     "kind == \"execution\" && execution.decision == \"DECISION_ALLOW\"",
+						Expr:     "kind == \"execution\" && event.execution.decision == DECISION_ALLOW",
 						Severity: "high",
 						Enabled:  true,
 					},
@@ -149,7 +148,7 @@ func TestLoadRules(t *testing.T) {
 					{
 						ID:        "TEST-CORR-001",
 						Title:     "Test Correlation",
-						Expr:      "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+						Expr:      "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 						Window:    5 * time.Minute,
 						Threshold: 3,
 						Severity:  "medium",
@@ -194,7 +193,7 @@ func TestEvaluate(t *testing.T) {
 			{
 				ID:       "EXEC-ALLOW",
 				Title:    "Execution Allowed",
-				Expr:     "kind == \"execution\" && execution.decision == \"DECISION_ALLOW\"",
+				Expr:     "kind == \"execution\" && event.execution.decision == DECISION_ALLOW",
 				Severity: "low",
 				Tags:     []string{"test"},
 				Enabled:  true,
@@ -202,7 +201,7 @@ func TestEvaluate(t *testing.T) {
 			{
 				ID:       "EXEC-DENY",
 				Title:    "Execution Denied",
-				Expr:     "kind == \"execution\" && execution.decision == \"DECISION_DENY\"",
+				Expr:     "kind == \"execution\" && event.execution.decision == DECISION_DENY",
 				Severity: "high",
 				Tags:     []string{"blocked"},
 				Enabled:  true,
@@ -296,15 +295,8 @@ func TestEvaluate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Convert to map and build activation
-			eventMap, err := events.ToMap(tt.msg)
-			if err != nil {
-				t.Fatalf("ToMap() failed: %v", err)
-			}
-			events.BuildActivation(tt.msg, eventMap)
-
 			// Evaluate
-			matches, err := engine.Evaluate(eventMap, tt.msg)
+			matches, err := engine.Evaluate(tt.msg)
 			if err != nil {
 				t.Fatalf("Evaluate() failed: %v", err)
 			}
@@ -353,13 +345,7 @@ func TestEvaluateEmpty(t *testing.T) {
 		},
 	}
 
-	eventMap, err := events.ToMap(msg)
-	if err != nil {
-		t.Fatalf("ToMap() failed: %v", err)
-	}
-	events.BuildActivation(msg, eventMap)
-
-	matches, err := engine.Evaluate(eventMap, msg)
+	matches, err := engine.Evaluate(msg)
 	if err != nil {
 		t.Fatalf("Evaluate() failed: %v", err)
 	}
@@ -382,7 +368,7 @@ func TestCompileExpression(t *testing.T) {
 	}{
 		{
 			name:    "valid boolean expression",
-			expr:    "kind == \"execution\" && execution.decision == \"DECISION_ALLOW\"",
+			expr:    "kind == \"execution\" && event.execution.decision == DECISION_ALLOW",
 			wantErr: false,
 		},
 		{
@@ -475,21 +461,21 @@ func BenchmarkEvaluate(b *testing.B) {
 			{
 				ID:       "BENCH-001",
 				Title:    "Unsigned execution from Downloads",
-				Expr:     "kind == \"execution\" && execution.target.executable.path.contains(\"/Downloads/\") && (execution.target.code_signature.team_id == \"\" || execution.target.code_signature.team_id == null)",
+				Expr:     "kind == \"execution\" && event.execution.target.executable.path.contains(\"/Downloads/\") && (!has(event.execution.target.code_signature.team_id) || event.execution.target.code_signature.team_id == \"\")",
 				Severity: "high",
 				Enabled:  true,
 			},
 			{
 				ID:       "BENCH-002",
 				Title:    "Chrome cookie access",
-				Expr:     "kind == \"file_access\" && file_access.policy_name == \"ChromeCookies\"",
+				Expr:     "kind == \"file_access\" && event.file_access.policy_name == \"ChromeCookies\"",
 				Severity: "high",
 				Enabled:  true,
 			},
 			{
 				ID:       "BENCH-003",
 				Title:    "XProtect detection",
-				Expr:     "kind == \"xprotect\" && xprotect.detected != null",
+				Expr:     "kind == \"xprotect\" && has(event.xprotect.detected)",
 				Severity: "critical",
 				Enabled:  true,
 			},
@@ -518,15 +504,9 @@ func BenchmarkEvaluate(b *testing.B) {
 		},
 	}
 
-	eventMap, err := events.ToMap(msg)
-	if err != nil {
-		b.Fatalf("ToMap() failed: %v", err)
-	}
-	events.BuildActivation(msg, eventMap)
-
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := engine.Evaluate(eventMap, msg)
+		_, err := engine.Evaluate(msg)
 		if err != nil {
 			b.Fatalf("Evaluate() failed: %v", err)
 		}
