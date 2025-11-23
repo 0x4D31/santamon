@@ -9,7 +9,6 @@ import (
 
 	santapb "buf.build/gen/go/northpolesec/protos/protocolbuffers/go/telemetry"
 	"github.com/0x4d31/santamon/internal/correlation"
-	"github.com/0x4d31/santamon/internal/events"
 	"github.com/0x4d31/santamon/internal/rules"
 	"github.com/0x4d31/santamon/internal/state"
 )
@@ -55,10 +54,6 @@ func TestFromRuleMatch(t *testing.T) {
 			},
 		},
 	}
-	eventMap, err := events.ToMap(msg)
-	if err != nil {
-		t.Fatalf("failed to map message: %v", err)
-	}
 
 	match := &rules.Match{
 		RuleID:    "SM-001",
@@ -66,7 +61,6 @@ func TestFromRuleMatch(t *testing.T) {
 		Title:     "Test Detection",
 		Tags:      []string{"T1539", "credential-access"},
 		Message:   msg,
-		EventMap:  eventMap,
 		Timestamp: ts,
 	}
 

@@ -1,9 +1,19 @@
 # Example Santamon macOS Ruleset
 # Telemetry: Execution, FileAccess, TCCModification, XProtect, LaunchItem, Disk
+#
+# Rule Syntax:
+#   - All protobuf fields accessed via 'event.' prefix: event.execution.decision
+#   - Enum constants used directly (not quoted): DECISION_ALLOW, DECISION_DENY
+#   - Check optional fields with has(): has(event.execution.target.code_signature)
+#
+# Field Extraction (track, group_by, count_distinct, extra_context):
+#   - Use 'event.' prefix for consistency: event.execution.target.executable.path
+#   - Legacy format without prefix also works: execution.target.executable.path
+#
 # Optional per-rule context helpers:
 #   include_event: true
 #   include_process_tree: true
-#   extra_context: ["execution.args", "file_access.instigator.effective_user.name"]
+#   extra_context: ["event.execution.args", "event.file_access.instigator.effective_user.name"]
 
 rules:
   - id: SM-001
@@ -11,8 +21,8 @@ rules:
     description: "Non-browser process attempted to access Chrome/Comet Cookies DB and was blocked."
     expr: |
       kind == "file_access" &&
-      file_access.policy_name in ["ChromeCookies","CometCookies"] &&
-      file_access.policy_decision == "POLICY_DECISION_DENIED"
+      event.file_access.policy_name in ["ChromeCookies","CometCookies"] &&
+      event.file_access.policy_decision == POLICY_DECISION_DENIED
     severity: critical
     tags: ["T1539", "credential-access"]
     enabled: true
@@ -22,11 +32,11 @@ rules:
     description: "Any non-ssh process reading ~/.ssh key material."
     expr: |
       kind == "file_access" &&
-      file_access.policy_name in ["SSHKeys","SSHPrivateKeys"] &&
-      !file_access.instigator.executable.path.startsWith("/usr/bin/ssh") &&
+      event.file_access.policy_name in ["SSHKeys","SSHPrivateKeys"] &&
+      !event.file_access.instigator.executable.path.startsWith("/usr/bin/ssh") &&
       !(
-        file_access.instigator.code_signature != null &&
-        file_access.instigator.code_signature.signing_id == "com.apple.ssh"
+        has(event.file_access.instigator.code_signature) &&
+        event.file_access.instigator.code_signature.signing_id == "com.apple.ssh"
       )
     severity: critical
     tags: ["T1552.004", "credential-access"]
@@ -37,10 +47,10 @@ rules:
     description: "Full Disk Access (SystemPolicyAllFiles) granted without USER_CONSENT to a non-Apple client."
     expr: |
       kind == "tcc_modification" &&
-      tcc_modification.service == "kTCCServiceSystemPolicyAllFiles" &&
-      tcc_modification.authorization_right == "AUTHORIZATION_RIGHT_ALLOW" &&
-      tcc_modification.authorization_reason != "AUTHORIZATION_REASON_USER_CONSENT" &&
-      !tcc_modification.identity.startsWith("com.apple.")
+      event.tcc_modification.service == "kTCCServiceSystemPolicyAllFiles" &&
+      event.tcc_modification.authorization_right == AUTHORIZATION_RIGHT_ALLOWED &&
+      event.tcc_modification.authorization_reason != AUTHORIZATION_REASON_USER_CONSENT &&
+      !event.tcc_modification.identity.startsWith("com.apple.")
     severity: critical
     tags: ["T1548.006", "defense-evasion", "privilege-escalation"]
     enabled: true
@@ -50,15 +60,15 @@ rules:
     description: "Camera / Microphone / ScreenCapture granted without USER_CONSENT to a non-Apple client."
     expr: |
       kind == "tcc_modification" &&
-      tcc_modification.service in [
+      event.tcc_modification.service in [
         "kTCCServiceCamera",
         "kTCCServiceMicrophone",
         "kTCCServiceScreenCapture",
         "kTCCServiceListenEvent"
       ] &&
-      tcc_modification.authorization_right == "AUTHORIZATION_RIGHT_ALLOW" &&
-      tcc_modification.authorization_reason != "AUTHORIZATION_REASON_USER_CONSENT" &&
-      !tcc_modification.identity.startsWith("com.apple.")
+      event.tcc_modification.authorization_right == AUTHORIZATION_RIGHT_ALLOWED &&
+      event.tcc_modification.authorization_reason != AUTHORIZATION_REASON_USER_CONSENT &&
+      !event.tcc_modification.identity.startsWith("com.apple.")
     severity: high
     tags: ["T1548.006", "collection", "defense-evasion"]
     enabled: true
@@ -66,7 +76,7 @@ rules:
   - id: SM-005
     title: "XProtect malware detection"
     description: "Any XProtect detection/remediation event from macOS built-in AV."
-    expr: kind == "xprotect" && xprotect.detected != null
+    expr: kind == "xprotect" && has(event.xprotect.detected)
     severity: critical
     tags: ["T1204.002", "malware"]
     enabled: true
@@ -76,12 +86,12 @@ rules:
     description: "Legacy LaunchAgent under a user path whose executable also lives in /Users (classic adware/malware persistence)."
     expr: |
       kind == "launch_item" &&
-      launch_item.action == "ACTION_ADD" &&
-      launch_item.item_type == "ITEM_TYPE_AGENT" &&
-      launch_item.legacy == true &&
-      launch_item.item_path.startsWith("/Users/") &&
-      launch_item.executable_path != null &&
-      launch_item.executable_path.startsWith("/Users/")
+      event.launch_item.action == ACTION_ADD &&
+      event.launch_item.item_type == ITEM_TYPE_AGENT &&
+      event.launch_item.legacy == true &&
+      event.launch_item.item_path.startsWith("/Users/") &&
+      has(event.launch_item.executable_path) &&
+      event.launch_item.executable_path.startsWith("/Users/")
     severity: high
     tags: ["T1543.001", "persistence"]
     enabled: true
@@ -91,13 +101,13 @@ rules:
     description: "Legacy LaunchDaemon whose executable lives under /Users or /Volumes (very abnormal for legit software)."
     expr: |
       kind == "launch_item" &&
-      launch_item.action == "ACTION_ADD" &&
-      launch_item.item_type == "ITEM_TYPE_DAEMON" &&
-      launch_item.legacy == true &&
-      launch_item.executable_path != null &&
+      event.launch_item.action == ACTION_ADD &&
+      event.launch_item.item_type == ITEM_TYPE_DAEMON &&
+      event.launch_item.legacy == true &&
+      has(event.launch_item.executable_path) &&
       (
-        launch_item.executable_path.startsWith("/Users/") ||
-        launch_item.executable_path.startsWith("/Volumes/")
+        event.launch_item.executable_path.startsWith("/Users/") ||
+        event.launch_item.executable_path.startsWith("/Volumes/")
       )
     severity: high
     tags: ["T1543.004", "persistence"]
@@ -108,12 +118,12 @@ rules:
     description: "Executable launched from ~/Downloads/Desktop/Documents where the target binary has no TeamID."
     expr: |
       kind == "execution" &&
-      execution.decision == "DECISION_ALLOW" &&
-      execution.target.executable.path.matches("^/Users/.*/(Downloads|Desktop|Documents)/.*") &&
+      event.execution.decision == DECISION_ALLOW &&
+      event.execution.target.executable.path.matches("^/Users/.*/(Downloads|Desktop|Documents)/.*") &&
       (
-        execution.target.code_signature == null ||
-        !has(execution.target.code_signature.team_id) ||
-        execution.target.code_signature.team_id == ""
+        !has(event.execution.target.code_signature) ||
+        !has(event.execution.target.code_signature.team_id) ||
+        event.execution.target.code_signature.team_id == ""
       )
     severity: high
     tags: ["T1204.002", "execution"]
@@ -124,13 +134,13 @@ rules:
     description: "Chrome/Chromium process launching osascript/shell/interpreters (drive-by or extension abuse)."
     expr: |
       kind == "execution" &&
-      execution.target.executable.path in [
+      event.execution.target.executable.path in [
         "/usr/bin/osascript", "/bin/bash", "/bin/sh",
         "/usr/bin/python3", "/usr/bin/python", "/usr/bin/perl", "/usr/bin/ruby"
       ] &&
       (
-        execution.instigator.executable.path.contains("Google Chrome") ||
-        execution.instigator.executable.path.contains("Chromium")
+        event.execution.instigator.executable.path.contains("Google Chrome") ||
+        event.execution.instigator.executable.path.contains("Chromium")
       )
     severity: high
     tags: ["T1059", "T1204", "initial-access"]
@@ -141,17 +151,17 @@ rules:
     description: "Non-Apple process invoking launchctl (commonly used to install persistence)."
     expr: |
       kind == "execution" &&
-      execution.target.executable.path in ["/bin/launchctl","/usr/bin/launchctl"] &&
+      event.execution.target.executable.path in ["/bin/launchctl","/usr/bin/launchctl"] &&
       !(
-        execution.instigator.executable.path.startsWith("/System/Library/") ||
-        execution.instigator.executable.path.startsWith("/usr/libexec/") ||
-        execution.instigator.executable.path.startsWith("/usr/sbin/")
+        event.execution.instigator.executable.path.startsWith("/System/Library/") ||
+        event.execution.instigator.executable.path.startsWith("/usr/libexec/") ||
+        event.execution.instigator.executable.path.startsWith("/usr/sbin/")
       ) &&
       !(
-        execution.instigator.executable.path.contains("/Terminal.app/") ||
-        execution.instigator.executable.path.contains("/iTerm.app/") ||
-        execution.instigator.executable.path.contains("/Visual Studio Code.app/") ||
-        execution.instigator.executable.path.startsWith("/opt/homebrew/")
+        event.execution.instigator.executable.path.contains("/Terminal.app/") ||
+        event.execution.instigator.executable.path.contains("/iTerm.app/") ||
+        event.execution.instigator.executable.path.contains("/Visual Studio Code.app/") ||
+        event.execution.instigator.executable.path.startsWith("/opt/homebrew/")
       )
     severity: high
     tags: ["persistence"]
@@ -162,11 +172,10 @@ rules:
     description: "Non-system process invoking dscl with -authonly, often used to validate phished passwords."
     expr: |
       kind == "execution" &&
-      execution.target.executable.path == "/usr/bin/dscl" &&
-      execution.args != null &&
-      execution.args.exists(arg, arg == "-authonly") &&
-      !execution.instigator.executable.path.startsWith("/System/Library/") &&
-      !execution.instigator.executable.path.startsWith("/usr/sbin/")
+      event.execution.target.executable.path == "/usr/bin/dscl" &&
+      decoded_args.exists(arg, arg == "-authonly") &&
+      !event.execution.instigator.executable.path.startsWith("/System/Library/") &&
+      !event.execution.instigator.executable.path.startsWith("/usr/sbin/")
     severity: critical
     tags: ["T1056.002", "credential-access"]
     enabled: true
@@ -176,11 +185,10 @@ rules:
     description: "osascript displaying a password prompt with hidden answer, launched by a non-system process."
     expr: |
       kind == "execution" &&
-      execution.target.executable.path == "/usr/bin/osascript" &&
-      execution.args != null &&
-      execution.args.exists(arg, arg.contains("display dialog")) &&
-      execution.args.exists(arg, arg.contains("hidden answer")) &&
-      !execution.instigator.executable.path.startsWith("/System/Library/")
+      event.execution.target.executable.path == "/usr/bin/osascript" &&
+      decoded_args.exists(arg, arg.contains("display dialog")) &&
+      decoded_args.exists(arg, arg.contains("hidden answer")) &&
+      !event.execution.instigator.executable.path.startsWith("/System/Library/")
     severity: high
     tags: ["T1056.002", "credential-access", "social-engineering"]
     enabled: true
@@ -190,12 +198,12 @@ rules:
     description: "Unknown-developer binary executed directly from /Volumes (common DMG stealer pattern)."
     expr: |
       kind == "execution" &&
-      execution.decision == "DECISION_ALLOW" &&
-      execution.target.executable.path.startsWith("/Volumes/") &&
+      event.execution.decision == DECISION_ALLOW &&
+      event.execution.target.executable.path.startsWith("/Volumes/") &&
       (
-        execution.target.code_signature == null ||
-        !has(execution.target.code_signature.team_id) ||
-        execution.target.code_signature.team_id == ""
+        !has(event.execution.target.code_signature) ||
+        !has(event.execution.target.code_signature.team_id) ||
+        event.execution.target.code_signature.team_id == ""
       )
     severity: high
     tags: ["T1204.002", "initial-access"]
@@ -208,23 +216,23 @@ rules:
       Non-shell, non-terminal, non-package-manager process launching curl or wget.
     expr: |
       kind == "execution" &&
-      execution.target.executable.path in ["/usr/bin/curl", "/usr/bin/wget"] &&
+      event.execution.target.executable.path in ["/usr/bin/curl", "/usr/bin/wget"] &&
 
       // Exclude interactive shells
       !(
-        execution.instigator.executable.path.startsWith("/bin/bash") ||
-        execution.instigator.executable.path.startsWith("/bin/zsh") ||
-        execution.instigator.executable.path.startsWith("/bin/sh")
+        event.execution.instigator.executable.path.startsWith("/bin/bash") ||
+        event.execution.instigator.executable.path.startsWith("/bin/zsh") ||
+        event.execution.instigator.executable.path.startsWith("/bin/sh")
       ) &&
 
       // Exclude Homebrew / package-manager helpers that legitimately use curl frequently
       !(
-        execution.instigator.executable.path.startsWith("/opt/homebrew/") ||
-        execution.instigator.executable.path.contains("/Homebrew/")
+        event.execution.instigator.executable.path.startsWith("/opt/homebrew/") ||
+        event.execution.instigator.executable.path.contains("/Homebrew/")
       )
     severity: high
     tags: ["T1105", "command-and-control"]
-    extra_context: ["execution.args"]
+    extra_context: ["event.execution.args"]
     include_process_tree: true
     enabled: true
 
@@ -238,7 +246,7 @@ correlations:
     description: "Single process accessing 3+ credential stores (cookies, SSH, keychain, passwords) within 5 minutes."
     expr: |
       kind == "file_access" &&
-      file_access.policy_name in [
+      event.file_access.policy_name in [
         "ChromeCookies",
         "CometCookies",
         "SSHPrivateKeys",
@@ -247,8 +255,8 @@ correlations:
       ]
     window: "5m"
     group_by:
-      - "file_access.instigator.executable.path"
-    count_distinct: "file_access.policy_name"
+      - "event.file_access.instigator.executable.path"
+    count_distinct: "event.file_access.policy_name"
     threshold: 3
     severity: critical
     tags: ["T1539", "T1552", "credential-access", "collection"]
@@ -266,15 +274,15 @@ baselines:
     description: "First time an unsigned binary executes from /Users paths during the learning window."
     expr: |
       kind == "execution" &&
-      execution.decision == "DECISION_ALLOW" &&
-      execution.target.executable.path.startsWith("/Users/") &&
+      event.execution.decision == DECISION_ALLOW &&
+      event.execution.target.executable.path.startsWith("/Users/") &&
       (
-        execution.target.code_signature == null ||
-        !has(execution.target.code_signature.team_id) ||
-        execution.target.code_signature.team_id == ""
+        !has(event.execution.target.code_signature) ||
+        !has(event.execution.target.code_signature.team_id) ||
+        event.execution.target.code_signature.team_id == ""
       )
     track:
-      - "execution.target.executable.cdhash"
+      - "event.execution.target.executable.cdhash"
     learning_period: "720h"
     severity: high
     tags: ["T1204.002", "initial-access", "execution"]
@@ -285,11 +293,11 @@ baselines:
     description: "Detects when the code signature hash for a given executable path changes (possible binary replacement)."
     expr: |
       kind == "execution" &&
-      execution.target.executable.path != "" &&
-      execution.target.executable.hash.hash != ""
+      event.execution.target.executable.path != "" &&
+      event.execution.target.executable.hash.hash != ""
     track:
-      - "execution.target.executable.path"
-      - "execution.target.executable.hash.hash"
+      - "event.execution.target.executable.path"
+      - "event.execution.target.executable.hash.hash"
     learning_period: "168h"    # Suppress alerts for 7 days
     severity: high
     tags: ["T1036", "defense-evasion", "baseline"]

@@ -43,16 +43,25 @@ func NewWindowManager(db *state.DB, maxEvents int, gcInterval time.Duration) *Wi
 }
 
 // Process evaluates an event against correlation rules.
-// The eventMap must already have BuildActivation called on it.
-func (wm *WindowManager) Process(msg *santapb.SantaMessage, eventMap map[string]any, correlationRules []*rules.CompiledCorrelation) ([]*WindowMatch, error) {
+func (wm *WindowManager) Process(msg *santapb.SantaMessage, correlationRules []*rules.CompiledCorrelation) ([]*WindowMatch, error) {
 	if len(correlationRules) == 0 {
 		return nil, nil
 	}
 
+	// Build typed activation with enum constants for CEL evaluation
+	activation := rules.BuildActivation(msg)
+
+	// Build event map for storage and grouping (correlation windows still use maps)
+	eventMap, err := events.ToMap(msg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert message to map: %w", err)
+	}
+	events.BuildActivation(msg, eventMap)
+
 	matches := make([]*WindowMatch, 0, 1) // Most events won't trigger correlations
 
 	for _, rule := range correlationRules {
-		result, _, err := rule.Program.Eval(eventMap)
+		result, _, err := rule.Program.Eval(activation)
 		if err != nil {
 			slog.Warn("correlation filter evaluation error", "rule_id", rule.Rule.ID, "error", err)
 			continue
@@ -131,8 +140,10 @@ func (wm *WindowManager) extractGroupKey(event map[string]any, groupBy []string)
 
 	parts := make([]string, 0, len(groupBy))
 	for _, field := range groupBy {
-		value := events.ExtractField(event, field)
-		parts = append(parts, fmt.Sprintf("%s=%s", field, value))
+		// Strip "event." prefix if present (config uses event.field.path, but map doesn't have that prefix)
+		cleanField := strings.TrimPrefix(field, "event.")
+		value := events.ExtractField(event, cleanField)
+		parts = append(parts, fmt.Sprintf("%s=%s", cleanField, value))
 	}
 
 	return strings.Join(parts, "|")
@@ -144,7 +155,9 @@ func (wm *WindowManager) countEvents(windowEvents []map[string]any, rule *rules.
 		// Count distinct values of a field
 		seen := make(map[string]struct{})
 		for _, evt := range windowEvents {
-			value := events.ExtractField(evt, rule.CountDistinct)
+			// Strip "event." prefix if present (config uses event.field.path, but map doesn't have that prefix)
+			cleanField := strings.TrimPrefix(rule.CountDistinct, "event.")
+			value := events.ExtractField(evt, cleanField)
 			if value != "" {
 				seen[value] = struct{}{}
 			}

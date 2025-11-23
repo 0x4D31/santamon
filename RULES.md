@@ -21,17 +21,16 @@ how to structure simple, correlation, and baseline rules.
 
 ## CEL Engine Overview
 
-Santamon uses [CEL](https://github.com/google/cel-spec) for rule evaluation.
+Santamon uses [CEL](https://github.com/google/cel-spec) for rule evaluation with typed protobuf support.
 The evaluation pipeline is:
 
-1. Santa protobuf `SantaMessage` → JSON using `protojson.Marshal`
-2. JSON → `map[string]any` for CEL
-3. Santamon adds a few top‑level metadata fields
-4. CEL expressions are evaluated against this map
+1. Santa protobuf `SantaMessage` is registered as a typed CEL variable named `event`
+2. Santa enum values (e.g., `DECISION_ALLOW`, `DECISION_DENY`) are registered as CEL constants
+3. Helper fields (`kind`, `machine_id`, `boot_session_uuid`, `decoded_args`) are added
+4. CEL expressions are evaluated against the typed protobuf message
 
-**Important:** even with `EmitUnpopulated: true`, optional nested structs may
-exist but their fields can be empty/zero. You can still safely access nested
-fields; just be mindful that values may be empty.
+**Important:** All protobuf fields are accessed via the `event.` prefix (e.g., `event.execution.decision`).
+Optional fields should be checked with `has(event.field.path)` before comparison to avoid null access errors.
 
 ## Verifying Fields
 
@@ -53,7 +52,7 @@ Field name correctness is critical: a single typo means a rule will never match.
 2. **Cross‑check against the Santa telemetry `.proto`**
 
    When in doubt about a nested field or enum value (e.g.
-   `launch_item.item_type`, `tcc_modification.authorization_right`), consult
+   `event.launch_item.item_type`, `event.tcc_modification.authorization_right`), consult
    the official Santa telemetry protobufs. Santamon uses the same schema
    (`UseProtoNames: true`), so the proto is the source of truth.
 
@@ -83,36 +82,53 @@ processed_time          # timestamp - When Santa processed event
 
 ### Event Blocks
 
-Events are nested under their type. Only one event type will be present per
-message:
+Events are nested under the `event` variable in their type. Only one event type will be present per message:
 
 ```cel
-execution               # Execution event data          (kind == "execution")
-file_access             # File access event data        (kind == "file_access")
-disk                    # Disk event data              (kind == "disk")
-launch_item             # Launch item event data       (kind == "launch_item")
-tcc_modification        # TCC modification data        (kind == "tcc_modification")
-xprotect                # XProtect detection data      (kind == "xprotect")
+event.execution               # Execution event data          (kind == "execution")
+event.file_access             # File access event data        (kind == "file_access")
+event.disk                    # Disk event data              (kind == "disk")
+event.launch_item             # Launch item event data       (kind == "launch_item")
+event.tcc_modification        # TCC modification data        (kind == "tcc_modification")
+event.xprotect                # XProtect detection data      (kind == "xprotect")
 ```
 
 Santamon also supports other telemetry event kinds (e.g. `allowlist`,
 `bundle`, `login_logout`, `login_window_session`, `screen_sharing`,
 `open_ssh`, `authentication`) via the `kind` field; those are available to
-rules even if the default ruleset doesn’t use them yet.
+rules even if the default ruleset doesn't use them yet.
 
-### Direct Proto Field Access
+### Enum Constants
 
-Santamon exposes the Santa protobuf structure as‑is:
-
-- `UseProtoNames: true` → field names stay in `snake_case`
-- `EmitUnpopulated: true` → parent messages are present even when empty
-
-This means you can access nested fields directly, e.g.:
+Santa protobuf enums are available as CEL constants (not strings):
 
 ```cel
-file_access.instigator.executable.path
-tcc_modification.service
-launch_item.item_path
+# Execution.Decision
+DECISION_UNKNOWN, DECISION_ALLOW, DECISION_DENY, DECISION_ALLOW_COMPILER
+
+# FileAccess.PolicyDecision
+POLICY_DECISION_UNKNOWN, POLICY_DECISION_DENIED, POLICY_DECISION_DENIED_INVALID_SIGNATURE, POLICY_DECISION_ALLOWED_AUDIT_ONLY
+
+# LaunchItem types and actions
+ITEM_TYPE_UNKNOWN, ITEM_TYPE_USER_ITEM, ITEM_TYPE_APP, ITEM_TYPE_LOGIN_ITEM, ITEM_TYPE_AGENT, ITEM_TYPE_DAEMON
+ACTION_UNKNOWN, ACTION_ADD, ACTION_REMOVE
+
+# TCC authorization rights and reasons
+AUTHORIZATION_RIGHT_UNKNOWN, AUTHORIZATION_RIGHT_DENIED, AUTHORIZATION_RIGHT_ALLOWED, ...
+AUTHORIZATION_REASON_USER_CONSENT, AUTHORIZATION_REASON_MDM_POLICY, ...
+```
+
+Use these constants directly in comparisons: `event.execution.decision == DECISION_ALLOW` (not `== DECISION_ALLOW`).
+
+### Typed Proto Field Access
+
+Santamon uses typed protobuf CEL evaluation with field names in `snake_case`.
+You can access nested fields directly via the `event` variable, e.g.:
+
+```cel
+event.file_access.instigator.executable.path
+event.tcc_modification.service
+event.launch_item.item_path
 ```
 
 Always gate on `kind` so you’re working with the correct event type.
@@ -130,12 +146,12 @@ rules:
     description: "Detects unsigned binaries executed from /tmp"
     expr: |
       kind == "execution" &&
-      execution.decision == "DECISION_ALLOW" &&
-      execution.target.executable.path.startsWith("/tmp/") &&
+      event.execution.decision == DECISION_ALLOW &&
+      event.execution.target.executable.path.startsWith("/tmp/") &&
       (
-        execution.target.code_signature == null ||
-        !has(execution.target.code_signature.team_id) ||
-        execution.target.code_signature.team_id == ""
+        !has(event.execution.target.code_signature) ||
+        !has(event.execution.target.code_signature.team_id) ||
+        event.execution.target.code_signature.team_id == ""
       )
     severity: high
     tags: ["T1204.002", "execution", "unsigned"]
@@ -150,11 +166,11 @@ Detect patterns across multiple events within a time window:
 correlations:
   - id: CORR-001
     title: "Repeated blocked executions"
-    expr: kind == "execution" && execution.decision == "DECISION_DENY"
+    expr: kind == "execution" && event.execution.decision == DECISION_DENY
     window: "5m"               # Time window
     group_by:                  # Grouping keys
-      - "execution.target.executable.hash.hash"
-      - "execution.instigator.effective_user.name"
+      - "event.execution.target.executable.hash.hash"
+      - "event.execution.instigator.effective_user.name"
     threshold: 3               # Alert after 3 events
     severity: medium
     tags: ["bruteforce", "persistence"]
@@ -171,8 +187,8 @@ baselines:
     title: "First-time TCC modification for app"
     expr: kind == "tcc_modification"
     track:
-      - "tcc_modification.identity"
-      - "tcc_modification.service"
+      - "event.tcc_modification.identity"
+      - "event.tcc_modification.service"
     learning_period: "720h"    # Suppress alerts for 30 days
     severity: medium
     tags: ["T1548.006", "privacy", "baseline"]
@@ -239,8 +255,8 @@ rules:
     description: "Non-Browser processes accessing Chrome/Comet Cookies DB."
     expr: |
       kind == "file_access" &&
-      file_access.policy_name in ["ChromeCookies","CometCookies"] &&
-      file_access.policy_decision != "POLICY_DECISION_ALLOWED_AUDIT_ONLY"
+      event.file_access.policy_name in ["ChromeCookies","CometCookies"] &&
+      event.file_access.policy_decision != "POLICY_DECISION_ALLOWED_AUDIT_ONLY"
     severity: critical
     tags: ["T1539", "credential-access"]
     enabled: true
@@ -275,7 +291,7 @@ duplicate rule ID SM-001: found in both
 Santamon automatically adds core metadata (actor path, target path/hash,
 decision, kind) to every signal. You can request more detail per rule:
 
-- `extra_context`: list of dotted field names (e.g. `execution.args`, `file_access.instigator.effective_user.name`). The value is added to the signal context as a string (except `execution.args`, which keeps the full argument list).
+- `extra_context`: list of dotted field names (e.g. `event.execution.args`, `event.file_access.instigator.effective_user.name`). The value is added to the signal context as a string (except `event.execution.args`, which keeps the full argument list).
 - `include_event`: attach the entire Santa event map to `context["event"]` for full-fidelity triage. This increases payload size.
 - `include_process_tree`: for execution rules, attach a `process_tree` array built from recent `Execution` events. See the dedicated section below for details.
 
@@ -295,7 +311,7 @@ rules:
     title: "Non-interactive curl/wget execution"
     expr: |
       kind == "execution" &&
-      execution.target.executable.path in ["/usr/bin/curl", "/usr/bin/wget"]
+      event.execution.target.executable.path in ["/usr/bin/curl", "/usr/bin/wget"]
     include_process_tree: true
     severity: medium
     tags: ["T1105", "command-and-control"]
@@ -408,10 +424,10 @@ The process tree immediately reveals this was scripted behavior, not direct user
 
 ```cel
 # ✅ GOOD
-kind == "execution" && execution.decision == "DECISION_ALLOW"
+kind == "execution" && event.execution.decision == DECISION_ALLOW
 
 # ❌ BAD - will error on non-execution events
-execution.decision == "DECISION_ALLOW"
+event.execution.decision == DECISION_ALLOW
 ```
 
 ### Optional Parents
@@ -419,7 +435,7 @@ execution.decision == "DECISION_ALLOW"
 ```cel
 # Check if code signature block exists
 kind == "execution" &&
-execution.target.code_signature == null
+!has(event.execution.target.code_signature)
 ```
 
 ### Execution Examples
@@ -427,14 +443,14 @@ execution.target.code_signature == null
 ```cel
 # Target executable path under /Users
 kind == "execution" &&
-execution.target.executable.path.startsWith("/Users/")
+event.execution.target.executable.path.startsWith("/Users/")
 
 # Unsigned or ad-hoc signed target
 kind == "execution" &&
 (
-  execution.target.code_signature == null ||
-  !has(execution.target.code_signature.team_id) ||
-  execution.target.code_signature.team_id == ""
+  !has(event.execution.target.code_signature) ||
+  !has(event.execution.target.code_signature.team_id) ||
+  event.execution.target.code_signature.team_id == ""
 )
 ```
 
@@ -443,12 +459,12 @@ kind == "execution" &&
 ```cel
 # Chrome cookies access
 kind == "file_access" &&
-file_access.policy_name == "ChromeCookies"
+event.file_access.policy_name == "ChromeCookies"
 
 # SSH key access by non-ssh process
 kind == "file_access" &&
-file_access.policy_name in ["SSHKeys", "SSHPrivateKeys"] &&
-!file_access.instigator.executable.path.startsWith("/usr/bin/ssh")
+event.file_access.policy_name in ["SSHKeys", "SSHPrivateKeys"] &&
+!event.file_access.instigator.executable.path.startsWith("/usr/bin/ssh")
 ```
 
 ### TCCModification Examples
@@ -456,9 +472,9 @@ file_access.policy_name in ["SSHKeys", "SSHPrivateKeys"] &&
 ```cel
 # FDA granted without user consent
 kind == "tcc_modification" &&
-tcc_modification.service == "kTCCServiceSystemPolicyAllFiles" &&
-tcc_modification.authorization_right == "AUTHORIZATION_RIGHT_ALLOW" &&
-tcc_modification.authorization_reason != "AUTHORIZATION_REASON_USER_CONSENT"
+event.tcc_modification.service == "kTCCServiceSystemPolicyAllFiles" &&
+event.tcc_modification.authorization_right == "AUTHORIZATION_RIGHT_ALLOW" &&
+event.tcc_modification.authorization_reason != "AUTHORIZATION_REASON_USER_CONSENT"
 ```
 
 ### LaunchItem Examples
@@ -466,10 +482,10 @@ tcc_modification.authorization_reason != "AUTHORIZATION_REASON_USER_CONSENT"
 ```cel
 # User LaunchAgent from user-writable path
 kind == "launch_item" &&
-launch_item.item_type == "ITEM_TYPE_AGENT" &&
-launch_item.action == "ACTION_ADD" &&
-launch_item.legacy == true &&
-launch_item.item_path.startsWith("/Users/")
+event.launch_item.item_type == "ITEM_TYPE_AGENT" &&
+event.launch_item.action == "ACTION_ADD" &&
+event.launch_item.legacy == true &&
+event.launch_item.item_path.startsWith("/Users/")
 ```
 
 ## Common Patterns
@@ -478,12 +494,12 @@ launch_item.item_path.startsWith("/Users/")
 
 ```cel
 kind == "execution" &&
-execution.decision == "DECISION_ALLOW" &&
-execution.target.executable.path.matches("^/Users/.*/(Downloads|Desktop|Documents)/.*") &&
+event.execution.decision == DECISION_ALLOW &&
+event.execution.target.executable.path.matches("^/Users/.*/(Downloads|Desktop|Documents)/.*") &&
 (
-  execution.target.code_signature == null ||
-  !has(execution.target.code_signature.team_id) ||
-  execution.target.code_signature.team_id == ""
+  !has(event.execution.target.code_signature) ||
+  !has(event.execution.target.code_signature.team_id) ||
+  event.execution.target.code_signature.team_id == ""
 )
 ```
 
@@ -492,24 +508,24 @@ execution.target.executable.path.matches("^/Users/.*/(Downloads|Desktop|Document
 ```cel
 # Office spawning scripting interpreter
 kind == "execution" &&
-execution.target.executable.path in [
+event.execution.target.executable.path in [
   "/usr/bin/osascript", "/bin/bash", "/bin/sh",
   "/usr/bin/python3", "/usr/bin/perl", "/usr/bin/ruby",
 ] &&
-execution.instigator.executable.path.contains("Microsoft")
+event.execution.instigator.executable.path.contains("Microsoft")
 ```
 
 ### Pattern Matching
 
 ```cel
 kind == "execution" &&
-execution.target.executable.path.matches("^/Users/.*/Downloads/.*\\.dmg$")
+event.execution.target.executable.path.matches("^/Users/.*/Downloads/.*\\.dmg$")
 ```
 
 ## Best Practices
 
 1. **Always check `kind` first**  
-   Avoid accessing `execution.*` on non-execution events.
+   Avoid accessing `event.execution.*` on non-execution events.
 
 2. **Use direct proto field names**  
    Keep to the upstream field names in `snake_case`.

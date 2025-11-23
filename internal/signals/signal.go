@@ -46,21 +46,34 @@ func (g *Generator) FromRuleMatch(match *rules.Match) *state.Signal {
 	context := map[string]any{}
 	appendMessageContext(context, match.Message)
 
+	// Build event map if needed for extra context or full event inclusion
+	var eventMap map[string]any
+	if match.Rule != nil && (match.Rule.IncludeEvent || len(match.Rule.ExtraContext) > 0) {
+		var err error
+		eventMap, err = events.ToMap(match.Message)
+		if err == nil {
+			events.BuildActivation(match.Message, eventMap)
+		}
+	}
+
 	// Include full event map when requested on the rule
-	if match.Rule != nil && match.Rule.IncludeEvent && match.EventMap != nil {
-		context["event"] = match.EventMap
+	if match.Rule != nil && match.Rule.IncludeEvent && eventMap != nil {
+		context["event"] = eventMap
 	}
 
 	// Include extra context fields when requested on the rule
-	if match.Rule != nil && len(match.Rule.ExtraContext) > 0 && match.EventMap != nil {
+	if match.Rule != nil && len(match.Rule.ExtraContext) > 0 && eventMap != nil {
 		for _, field := range match.Rule.ExtraContext {
 			if field == "" {
 				continue
 			}
 
+			// Strip "event." prefix if present (config uses event.field.path, but map doesn't have that prefix)
+			cleanField := strings.TrimPrefix(field, "event.")
+
 			// Special-case execution.args to preserve the full list
-			if field == "execution.args" {
-				if execRaw, ok := match.EventMap["execution"].(map[string]any); ok {
+			if cleanField == "execution.args" {
+				if execRaw, ok := eventMap["execution"].(map[string]any); ok {
 					if args, ok := execRaw["args"]; ok && args != nil {
 						context["execution.args"] = args
 						continue
@@ -68,8 +81,8 @@ func (g *Generator) FromRuleMatch(match *rules.Match) *state.Signal {
 				}
 			}
 
-			if val := events.ExtractField(match.EventMap, field); val != "" {
-				context[field] = val
+			if val := events.ExtractField(eventMap, cleanField); val != "" {
+				context[cleanField] = val
 			}
 		}
 	}

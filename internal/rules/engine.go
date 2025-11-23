@@ -11,6 +11,61 @@ import (
 	"github.com/0x4d31/santamon/internal/logutil"
 )
 
+// santaEnums maps Santa protobuf enum names to their integer values
+// These are registered as CEL constants for use in rules
+var santaEnums = map[string]int64{
+	// Execution.Decision
+	"DECISION_UNKNOWN":        0,
+	"DECISION_ALLOW":          1,
+	"DECISION_DENY":           2,
+	"DECISION_ALLOW_COMPILER": 3,
+
+	// FileAccess.PolicyDecision
+	"POLICY_DECISION_UNKNOWN":                  0,
+	"POLICY_DECISION_DENIED":                   1,
+	"POLICY_DECISION_DENIED_INVALID_SIGNATURE": 2,
+	"POLICY_DECISION_ALLOWED_AUDIT_ONLY":       3,
+
+	// LaunchItem.Action
+	"ACTION_UNKNOWN": 0,
+	"ACTION_ADD":     1,
+	"ACTION_REMOVE":  2,
+
+	// LaunchItem.ItemType
+	"ITEM_TYPE_UNKNOWN":    0,
+	"ITEM_TYPE_USER_ITEM":  1,
+	"ITEM_TYPE_APP":        2,
+	"ITEM_TYPE_LOGIN_ITEM": 3,
+	"ITEM_TYPE_AGENT":      4,
+	"ITEM_TYPE_DAEMON":     5,
+
+	// TCCModification.AuthorizationRight
+	"AUTHORIZATION_RIGHT_UNKNOWN":          0,
+	"AUTHORIZATION_RIGHT_DENIED":           1,
+	"AUTHORIZATION_RIGHT_ALLOWED":          2,
+	"AUTHORIZATION_RIGHT_LIMITED":          3,
+	"AUTHORIZATION_RIGHT_ADD_MODIFY_ADDED": 4,
+	"AUTHORIZATION_RIGHT_SESSION_PID":      5,
+	"AUTHORIZATION_RIGHT_LEARN_MORE":       6,
+
+	// TCCModification.AuthorizationReason
+	"AUTHORIZATION_REASON_UNKNOWN":                 0,
+	"AUTHORIZATION_REASON_NONE":                    1,
+	"AUTHORIZATION_REASON_ERROR":                   2,
+	"AUTHORIZATION_REASON_USER_CONSENT":            3,
+	"AUTHORIZATION_REASON_USER_SET":                4,
+	"AUTHORIZATION_REASON_SYSTEM_SET":              5,
+	"AUTHORIZATION_REASON_SERVICE_POLICY":          6,
+	"AUTHORIZATION_REASON_MDM_POLICY":              7,
+	"AUTHORIZATION_REASON_SERVICE_OVERRIDE_POLICY": 8,
+	"AUTHORIZATION_REASON_MISSING_USAGE_STRING":    9,
+	"AUTHORIZATION_REASON_PROMPT_TIMEOUT":          10,
+	"AUTHORIZATION_REASON_PREFLIGHT_UNKNOWN":       11,
+	"AUTHORIZATION_REASON_ENTITLED":                12,
+	"AUTHORIZATION_REASON_APP_TYPE_POLICY":         13,
+	"AUTHORIZATION_REASON_PROMPT_CANCEL":           14,
+}
+
 // Engine evaluates detection rules against events
 type Engine struct {
 	rules        []*CompiledRule
@@ -39,29 +94,33 @@ type Match struct {
 	Severity  string
 	Tags      []string
 	Message   *santapb.SantaMessage
-	EventMap  map[string]any
 	Timestamp time.Time
 	Rule      *Rule
 }
 
 // NewEngine creates a new rules engine
 func NewEngine() (*Engine, error) {
-	varDecls := []cel.EnvOption{
-		cel.Variable("event_time", cel.TimestampType),
-		cel.Variable("processed_time", cel.TimestampType),
+	// Get the file descriptor for Santa messages
+	msgDesc := (&santapb.SantaMessage{}).ProtoReflect().Descriptor()
+	fileDesc := msgDesc.ParentFile()
+
+	// Build CEL environment options
+	envOpts := []cel.EnvOption{
+		cel.TypeDescs(fileDesc),
+		cel.Variable("event", cel.ObjectType(string(msgDesc.FullName()))),
+		cel.Variable("kind", cel.StringType),
 		cel.Variable("machine_id", cel.StringType),
 		cel.Variable("boot_session_uuid", cel.StringType),
-		cel.Variable("kind", cel.StringType),
+		cel.Variable("decoded_args", cel.ListType(cel.StringType)),
 	}
 
-	// Use event types from events package
-	for _, field := range events.EventTypes {
-		varDecls = append(varDecls,
-			cel.Variable(field, cel.DynType),
-		)
+	// Register Santa enum constants
+	for name := range santaEnums {
+		envOpts = append(envOpts, cel.Variable(name, cel.IntType))
 	}
 
-	env, err := cel.NewEnv(varDecls...)
+	// Register Santa protobuf types with CEL
+	env, err := cel.NewEnv(envOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CEL environment: %w", err)
 	}
@@ -169,19 +228,38 @@ func (e *Engine) compileExpression(ruleID, expr string) (cel.Program, error) {
 	return program, nil
 }
 
+// BuildActivation creates a CEL activation map from a Santa message with all required variables
+func BuildActivation(msg *santapb.SantaMessage) map[string]any {
+	activation := map[string]any{
+		"event":             msg,
+		"kind":              events.Kind(msg),
+		"machine_id":        msg.GetMachineId(),
+		"boot_session_uuid": msg.GetBootSessionUuid(),
+		"decoded_args":      events.DecodedArgs(msg),
+	}
+
+	// Add enum constants to activation
+	for name, value := range santaEnums {
+		activation[name] = value
+	}
+
+	return activation
+}
+
 // Evaluate runs all rules against an event and returns matches.
-// The eventMap must already have BuildActivation called on it.
-func (e *Engine) Evaluate(eventMap map[string]any, msg *santapb.SantaMessage) ([]*Match, error) {
+func (e *Engine) Evaluate(msg *santapb.SantaMessage) ([]*Match, error) {
 	if len(e.rules) == 0 {
 		return nil, nil
 	}
+
+	activation := BuildActivation(msg)
 
 	// Pre-allocate assuming ~5% match rate (tune based on real-world data)
 	matches := make([]*Match, 0, max(1, len(e.rules)/20))
 
 	// Evaluate each rule
 	for _, compiled := range e.rules {
-		result, _, err := compiled.Program.Eval(eventMap)
+		result, _, err := compiled.Program.Eval(activation)
 		if err != nil {
 			// Log error but continue with other rules to avoid single rule failure breaking all detection
 			logutil.Warn("rule evaluation error for %s: %v", compiled.Rule.ID, err)
@@ -202,7 +280,6 @@ func (e *Engine) Evaluate(eventMap map[string]any, msg *santapb.SantaMessage) ([
 				Severity:  compiled.Rule.Severity,
 				Tags:      compiled.Rule.Tags,
 				Message:   msg,
-				EventMap:  eventMap,
 				Timestamp: events.EventTime(msg),
 				Rule:      compiled.Rule,
 			})
