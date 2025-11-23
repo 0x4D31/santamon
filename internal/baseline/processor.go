@@ -47,13 +47,16 @@ func (p *Processor) Process(
 		return nil, nil
 	}
 
-	// Build typed activation with enum constants
+	// Build typed activation with enum constants for CEL evaluation.
+	// Note: We use typed protobuf for CEL (fast, type-safe), but convert to map
+	// for pattern extraction (flexible field access). ToMap is called lazily
+	// only after filter matches (~1% of events) to minimize overhead.
 	activation := rules.BuildActivation(msg)
 
 	matches := make([]*BaselineMatch, 0, 1) // Most events won't match
 
 	for _, baseline := range baselines {
-		// Evaluate filter expression
+		// Evaluate filter expression against typed protobuf
 		result, _, err := baseline.Program.Eval(activation)
 		if err != nil {
 			slog.Warn("baseline filter evaluation error", "rule_id", baseline.Rule.ID, "error", err)
@@ -70,8 +73,16 @@ func (p *Processor) Process(
 			continue
 		}
 
-		// Extract pattern to track
-		pattern := p.extractPattern(activation, baseline.Rule.Track)
+		// Only convert to map after filter matches (lazy evaluation for performance).
+		// Pattern extraction needs flattened map structure for flexible field access.
+		eventMap, err := events.ToMap(msg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert message to map: %w", err)
+		}
+		events.BuildActivation(msg, eventMap)
+
+		// Extract pattern to track (use event map for field extraction)
+		pattern := p.extractPattern(eventMap, baseline.Rule.Track)
 
 		// Check if we've seen this pattern before
 		isFirst, err := p.db.IsFirstSeen(baseline.Rule.ID, pattern)
@@ -105,14 +116,19 @@ func (p *Processor) Process(
 	return matches, nil
 }
 
-// extractPattern builds a unique pattern from tracked fields
+// extractPattern builds a unique pattern from tracked fields.
+// The pattern is used to deduplicate baseline matches - only the first occurrence
+// of each unique pattern triggers an alert.
 func (p *Processor) extractPattern(event map[string]any, trackFields []string) string {
 	parts := make([]string, 0, len(trackFields))
 
 	for _, field := range trackFields {
-		value := events.ExtractField(event, field)
+		// Strip "event." prefix if present. Config uses event.field.path (consistent with CEL),
+		// but the eventMap doesn't have that prefix (top-level keys are execution, file_access, etc.)
+		cleanField := strings.TrimPrefix(field, "event.")
+		value := events.ExtractField(event, cleanField)
 		// Include field name in pattern for clarity
-		parts = append(parts, fmt.Sprintf("%s=%s", field, value))
+		parts = append(parts, fmt.Sprintf("%s=%s", cleanField, value))
 	}
 
 	return strings.Join(parts, "|")

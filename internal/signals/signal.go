@@ -68,8 +68,11 @@ func (g *Generator) FromRuleMatch(match *rules.Match) *state.Signal {
 				continue
 			}
 
+			// Strip "event." prefix if present (config uses event.field.path, but map doesn't have that prefix)
+			cleanField := strings.TrimPrefix(field, "event.")
+
 			// Special-case execution.args to preserve the full list
-			if field == "execution.args" {
+			if cleanField == "execution.args" {
 				if execRaw, ok := eventMap["execution"].(map[string]any); ok {
 					if args, ok := execRaw["args"]; ok && args != nil {
 						context["execution.args"] = args
@@ -78,8 +81,8 @@ func (g *Generator) FromRuleMatch(match *rules.Match) *state.Signal {
 				}
 			}
 
-			if val := events.ExtractField(eventMap, field); val != "" {
-				context[field] = val
+			if val := events.ExtractField(eventMap, cleanField); val != "" {
+				context[cleanField] = val
 			}
 		}
 	}

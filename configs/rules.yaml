@@ -6,10 +6,14 @@
 #   - Enum constants used directly (not quoted): DECISION_ALLOW, DECISION_DENY
 #   - Check optional fields with has(): has(event.execution.target.code_signature)
 #
+# Field Extraction (track, group_by, count_distinct, extra_context):
+#   - Use 'event.' prefix for consistency: event.execution.target.executable.path
+#   - Legacy format without prefix also works: execution.target.executable.path
+#
 # Optional per-rule context helpers:
 #   include_event: true
 #   include_process_tree: true
-#   extra_context: ["execution.args", "file_access.instigator.effective_user.name"]
+#   extra_context: ["event.execution.args", "event.file_access.instigator.effective_user.name"]
 
 rules:
   - id: SM-001

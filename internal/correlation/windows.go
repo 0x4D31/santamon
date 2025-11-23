@@ -140,8 +140,10 @@ func (wm *WindowManager) extractGroupKey(event map[string]any, groupBy []string)
 
 	parts := make([]string, 0, len(groupBy))
 	for _, field := range groupBy {
-		value := events.ExtractField(event, field)
-		parts = append(parts, fmt.Sprintf("%s=%s", field, value))
+		// Strip "event." prefix if present (config uses event.field.path, but map doesn't have that prefix)
+		cleanField := strings.TrimPrefix(field, "event.")
+		value := events.ExtractField(event, cleanField)
+		parts = append(parts, fmt.Sprintf("%s=%s", cleanField, value))
 	}
 
 	return strings.Join(parts, "|")
@@ -153,7 +155,9 @@ func (wm *WindowManager) countEvents(windowEvents []map[string]any, rule *rules.
 		// Count distinct values of a field
 		seen := make(map[string]struct{})
 		for _, evt := range windowEvents {
-			value := events.ExtractField(evt, rule.CountDistinct)
+			// Strip "event." prefix if present (config uses event.field.path, but map doesn't have that prefix)
+			cleanField := strings.TrimPrefix(rule.CountDistinct, "event.")
+			value := events.ExtractField(evt, cleanField)
 			if value != "" {
 				seen[value] = struct{}{}
 			}
