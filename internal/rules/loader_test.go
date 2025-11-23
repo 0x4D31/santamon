@@ -127,7 +127,7 @@ func TestLoadRulesDir(t *testing.T) {
 		}
 		// Check error message mentions both files
 		errMsg := err.Error()
-		if !(contains(errMsg, "duplicate") && contains(errMsg, "DUP-001")) {
+		if !contains(errMsg, "duplicate") || !contains(errMsg, "DUP-001") {
 			t.Errorf("error message should mention duplicate ID DUP-001: %v", err)
 		}
 	})

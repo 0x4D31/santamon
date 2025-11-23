@@ -49,12 +49,12 @@ func NewWatcherWithOptions(spoolDir string, stabilityWait time.Duration, opts Wa
 	// Watch the "new" subdirectory (maildir-style)
 	newDir := filepath.Join(spoolDir, "new")
 	if err := os.MkdirAll(newDir, 0755); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, fmt.Errorf("failed to create spool/new directory: %w", err)
 	}
 
 	if err := watcher.Add(newDir); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return nil, fmt.Errorf("failed to watch directory: %w", err)
 	}
 
@@ -72,7 +72,7 @@ func NewWatcherWithOptions(spoolDir string, stabilityWait time.Duration, opts Wa
 	// Create archive directory if specified
 	if opts.ArchiveDir != "" {
 		if err := os.MkdirAll(opts.ArchiveDir, 0755); err != nil {
-			watcher.Close()
+			_ = watcher.Close()
 			return nil, fmt.Errorf("failed to create archive directory: %w", err)
 		}
 	}
@@ -227,13 +227,13 @@ func (w *Watcher) copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
 		return err

@@ -350,8 +350,8 @@ func TestEvaluateEmpty(t *testing.T) {
 		t.Fatalf("Evaluate() failed: %v", err)
 	}
 
-	if matches != nil && len(matches) != 0 {
-		t.Errorf("expected nil or empty matches, got %d matches", len(matches))
+	if len(matches) != 0 {
+		t.Errorf("expected empty matches, got %d matches", len(matches))
 	}
 }
 

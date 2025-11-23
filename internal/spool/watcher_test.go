@@ -14,7 +14,7 @@ func TestNewWatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	if w.spoolDir != spoolDir {
 		t.Errorf("Expected spoolDir %s, got %s", spoolDir, w.spoolDir)
@@ -45,7 +45,7 @@ func TestNewWatcherWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcherWithOptions failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	if w.archiveDir != archiveDir {
 		t.Errorf("Expected archiveDir %s, got %s", archiveDir, w.archiveDir)
@@ -83,14 +83,14 @@ func TestWatcherProcessExistingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	// Start watcher in background
 	go func() {
-		w.Start(ctx)
+		_ = w.Start(ctx)
 	}()
 
 	// Should receive the existing file
@@ -110,14 +110,14 @@ func TestWatcherNewFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	// Start watcher in background
 	go func() {
-		w.Start(ctx)
+		_ = w.Start(ctx)
 	}()
 
 	// Give watcher time to start
@@ -147,14 +147,14 @@ func TestWatcherFileStability(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Start watcher in background
 	go func() {
-		w.Start(ctx)
+		_ = w.Start(ctx)
 	}()
 
 	// Give watcher time to start
@@ -197,7 +197,7 @@ func TestArchiveFileDelete(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	testFile := filepath.Join(spoolDir, "test.pb")
 	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
@@ -227,7 +227,7 @@ func TestArchiveFileMove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcherWithOptions failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	testFile := filepath.Join(spoolDir, "test.pb")
 	testContent := []byte("test data")
@@ -263,7 +263,7 @@ func TestArchiveFileNonexistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	// Archiving nonexistent file should not error
 	err = w.ArchiveFile("/nonexistent/file.pb")
@@ -283,14 +283,14 @@ func TestWatcherMaxPendingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcherWithOptions failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Start watcher in background
 	go func() {
-		w.Start(ctx)
+		_ = w.Start(ctx)
 	}()
 
 	// Give watcher time to start
@@ -317,7 +317,7 @@ func TestWatcherContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewWatcher failed: %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 

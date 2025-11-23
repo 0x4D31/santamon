@@ -52,3 +52,6 @@ signals.db
 # Temporary files
 tmp/
 temp/
+
+# Build artifacts
+/dist

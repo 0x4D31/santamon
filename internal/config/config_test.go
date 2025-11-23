@@ -304,8 +304,12 @@ func TestApplyDefaults(t *testing.T) {
 
 func TestEnvironmentVariableExpansion(t *testing.T) {
 	// Set test environment variable
-	os.Setenv("TEST_API_KEY", "expanded-key-1234567890")
-	defer os.Unsetenv("TEST_API_KEY")
+	if err := os.Setenv("TEST_API_KEY", "expanded-key-1234567890"); err != nil {
+		t.Fatalf("Failed to set TEST_API_KEY: %v", err)
+	}
+	defer func() {
+		_ = os.Unsetenv("TEST_API_KEY")
+	}()
 
 	// Create config with env var
 	tmpDir := t.TempDir()

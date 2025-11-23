@@ -17,7 +17,7 @@ func TestNewWindowManager(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	wm := NewWindowManager(db, 100, time.Minute)
 	if wm == nil {
@@ -39,7 +39,7 @@ func TestProcessNoCorrelations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	wm := NewWindowManager(db, 100, time.Minute)
 	msg := createTestMessage("test-machine", "DECISION_DENY")
@@ -49,8 +49,8 @@ func TestProcessNoCorrelations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Process failed: %v", err)
 	}
-	if matches != nil && len(matches) != 0 {
-		t.Errorf("expected nil or empty matches, got %d", len(matches))
+	if len(matches) != 0 {
+		t.Errorf("expected empty matches, got %d", len(matches))
 	}
 }
 
@@ -60,7 +60,7 @@ func TestProcessSimpleThreshold(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -144,7 +144,7 @@ func TestProcessGroupBy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -224,7 +224,7 @@ func TestProcessCountDistinct(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -292,7 +292,7 @@ func TestProcessWindowExpiration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -353,7 +353,7 @@ func TestProcessPrunesExpiredStoredEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -412,7 +412,7 @@ func TestProcessBoundsStoredEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -476,7 +476,7 @@ func TestProcessFilterExpression(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -546,7 +546,7 @@ func TestProcessMultipleCorrelations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	engine, err := rules.NewEngine()
 	if err != nil {
@@ -625,7 +625,7 @@ func TestExtractGroupKey(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	wm := NewWindowManager(db, 100, time.Minute)
 
@@ -691,7 +691,7 @@ func TestCountEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to open db: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	wm := NewWindowManager(db, 100, time.Minute)
 

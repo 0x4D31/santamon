@@ -26,8 +26,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const (
-	version           = "v0.1.0"
+var (
+	version           = "dev"
+	commit            = "none"
+	date              = "unknown"
 	defaultConfigPath = "/etc/santamon/config.yaml"
 )
 
@@ -50,6 +52,8 @@ func main() {
 		rulesCommand()
 	case "version":
 		fmt.Printf("santamon version %s\n", version)
+		fmt.Printf("commit: %s\n", commit)
+		fmt.Printf("built: %s\n", date)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -186,7 +190,7 @@ func runCommand() {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	configPath := fs.String("config", defaultConfigPath, "Configuration file path")
 	verbose := fs.Bool("verbose", false, "Verbose mode (show additional details and timestamps)")
-	fs.Parse(os.Args[2:])
+	_ = fs.Parse(os.Args[2:])
 
 	// Set verbosity level and timestamps
 	if *verbose {
@@ -209,7 +213,8 @@ func runCommand() {
 	fmt.Println("|___ / ___ | | | || |_/ ___ | | | | |_| | | | |")
 	fmt.Println("(___/\\_____|_| |_| \\__)_____|_|_|_|\\___/|_| |_|")
 	fmt.Println("                                               ")
-	fmt.Printf("  %s - Lightweight macOS Detection Agent\n\n", version)
+	fmt.Printf("  %s - Lightweight macOS Detection Agent\n", version)
+	fmt.Printf("  commit: %s, built: %s\n\n", commit, date)
 	fmt.Printf("\033[92m✓\033[0m Loaded configuration from %s\n", *configPath)
 	fmt.Printf("\033[92m✓\033[0m Agent ID: %s\n", cfg.Agent.ID)
 
@@ -219,7 +224,7 @@ func runCommand() {
 		logutil.Error("Failed to open database: %v", err)
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Store agent metadata
 	if err := db.SetMeta("agent_id", cfg.Agent.ID); err != nil {
@@ -278,7 +283,7 @@ func runCommand() {
 		logutil.Error("Failed to create watcher: %v", err)
 		os.Exit(1)
 	}
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	// Create shipper
 	ship := shipper.NewShipper(&cfg.Shipper, db, cfg.Agent.ID, version)
@@ -551,7 +556,7 @@ func runCommand() {
 func statusCommand() {
 	fs := flag.NewFlagSet("status", flag.ExitOnError)
 	configPath := fs.String("config", defaultConfigPath, "Configuration file path")
-	fs.Parse(os.Args[2:])
+	_ = fs.Parse(os.Args[2:])
 
 	cfg, err := config.LoadForReadOnly(*configPath)
 	if err != nil {
@@ -562,7 +567,7 @@ func statusCommand() {
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	stats, err := db.Stats()
 	if err != nil {
@@ -594,7 +599,7 @@ func dbCommand() {
 	subCmd := os.Args[2]
 
 	fs, configPath := newDBFlagSet(flag.ExitOnError)
-	fs.Parse(os.Args[3:])
+	_ = fs.Parse(os.Args[3:])
 
 	// Load config to get DB path (skip shipper validation for read-only ops)
 	cfg, err := config.LoadForReadOnly(*configPath)
@@ -606,7 +611,7 @@ func dbCommand() {
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	switch subCmd {
 	case "stats":
@@ -642,7 +647,7 @@ func rulesCommand() {
 	// Parse config flag
 	fs := flag.NewFlagSet("rules", flag.ExitOnError)
 	configPath := fs.String("config", defaultConfigPath, "Configuration file path")
-	fs.Parse(os.Args[3:])
+	_ = fs.Parse(os.Args[3:])
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {

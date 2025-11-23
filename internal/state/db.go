@@ -235,7 +235,7 @@ func (db *DB) IsFirstSeen(kind, id string) (bool, error) {
 			if b.Stats().KeyN >= db.maxFirstSeen {
 				c := b.Cursor()
 				if k, _ := c.First(); k != nil {
-					b.Delete(k)
+					_ = b.Delete(k)
 				}
 			}
 
@@ -447,7 +447,7 @@ func (db *DB) Stats() (map[string]any, error) {
 		// Count window events
 		windowCount := 0
 		windowBucket := tx.Bucket(bucketWindows)
-		windowBucket.ForEach(func(k, v []byte) error {
+		_ = windowBucket.ForEach(func(k, v []byte) error {
 			if v == nil { // It's a nested bucket
 				ruleBucket := windowBucket.Bucket(k)
 				if ruleBucket != nil {

@@ -16,7 +16,7 @@ import (
 
 func TestNewShipper(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := &config.ShipperConfig{
 		Endpoint:      "https://test.example.com",
@@ -65,12 +65,12 @@ func TestSendHTTPSuccess(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status":"ok"}`))
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
 	}))
 	defer server.Close()
 
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig(server.URL)
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")
@@ -96,7 +96,7 @@ func TestSendHTTPServerError(t *testing.T) {
 	defer server.Close()
 
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig(server.URL)
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")
@@ -116,12 +116,12 @@ func TestSendHTTPClientError(t *testing.T) {
 	// Create test server that returns 400
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("invalid request"))
+		_, _ = w.Write([]byte("invalid request"))
 	}))
 	defer server.Close()
 
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig(server.URL)
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")
@@ -152,7 +152,7 @@ func TestSendSignalRetry(t *testing.T) {
 	defer server.Close()
 
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig(server.URL)
 	cfg.Retry.MaxAttempts = 3
@@ -182,7 +182,7 @@ func TestSendSignalNoPermanentRetry(t *testing.T) {
 	defer server.Close()
 
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig(server.URL)
 	cfg.Retry.MaxAttempts = 3
@@ -209,7 +209,7 @@ func TestFlushRetainsPermanentFailures(t *testing.T) {
 	defer server.Close()
 
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig(server.URL)
 	cfg.BatchSize = 5
@@ -251,7 +251,7 @@ func TestSendSignalContextCancellation(t *testing.T) {
 	defer server.Close()
 
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig(server.URL)
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")
@@ -272,7 +272,7 @@ func TestSendSignalContextCancellation(t *testing.T) {
 
 func TestBackoffWithJitter(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig("https://test.example.com")
 	cfg.Retry.Backoff = "exponential"
@@ -300,7 +300,7 @@ func TestBackoffWithJitter(t *testing.T) {
 
 func TestCircuitBreaker(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig("https://test.example.com")
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")
@@ -332,7 +332,7 @@ func TestCircuitBreaker(t *testing.T) {
 
 func TestCircuitBreakerTimeout(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig("https://test.example.com")
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")
@@ -362,7 +362,7 @@ func TestCircuitBreakerTimeout(t *testing.T) {
 
 func TestGetMetrics(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig("https://test.example.com")
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")
@@ -386,7 +386,7 @@ func TestGetMetrics(t *testing.T) {
 
 func TestEnqueueSignal(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig("https://test.example.com")
 	flushOn := true
@@ -422,7 +422,7 @@ func TestEnqueueSignal(t *testing.T) {
 
 func TestEnqueueSignalDeduplication(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	cfg := testConfig("https://test.example.com")
 	s := NewShipper(cfg, db, "test-agent", "1.0.0")

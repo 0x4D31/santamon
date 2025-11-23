@@ -101,7 +101,9 @@ func (s *Shipper) Start(ctx context.Context) error {
 			// Final flush before shutdown (with short timeout)
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			s.flushWithContext(shutdownCtx)
+			if err := s.flushWithContext(shutdownCtx); err != nil && err != context.Canceled {
+				logutil.Warn("Shutdown flush error: %v", err)
+			}
 
 			// Log final metrics
 			s.logMetrics()
@@ -314,8 +316,8 @@ func (s *Shipper) sendHTTPWithContext(ctx context.Context, sig *state.Signal) er
 	}
 	defer func() {
 		// Always drain and close body to prevent connection leaks
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
-		resp.Body.Close()
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+		_ = resp.Body.Close()
 	}()
 
 	// Check response status
@@ -553,8 +555,8 @@ func (s *Shipper) sendHeartbeat(ctx context.Context, startTime time.Time) error 
 		return fmt.Errorf("heartbeat request failed: %w", err)
 	}
 	defer func() {
-		io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
-		resp.Body.Close()
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {

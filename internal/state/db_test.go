@@ -87,7 +87,7 @@ func TestOpen(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			defer db.Close()
+			defer func() { _ = db.Close() }()
 
 			// Verify database is open and functional
 			if db.DB == nil {
@@ -100,7 +100,7 @@ func TestOpen(t *testing.T) {
 // TestEnqueueDequeueSignals tests signal queue operations
 func TestEnqueueDequeueSignals(t *testing.T) {
 	db, _ := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Create test signals
 	signals := []*Signal{
@@ -157,7 +157,7 @@ func TestEnqueueDequeueSignals(t *testing.T) {
 // TestEnqueueSignalIfNotShipped tests atomic check-and-enqueue
 func TestEnqueueSignalIfNotShipped(t *testing.T) {
 	db, _ := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	sig := &Signal{
 		ID:       "signal-1",
@@ -197,7 +197,7 @@ func TestEnqueueSignalIfNotShipped(t *testing.T) {
 // TestIsFirstSeen tests first-seen tracking
 func TestIsFirstSeen(t *testing.T) {
 	db, _ := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	kind := "execution"
 	id := "sha256:abcd1234"
@@ -239,7 +239,7 @@ func TestFirstSeenLRUEviction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	kind := "execution"
 
@@ -277,7 +277,7 @@ func TestFirstSeenLRUEviction(t *testing.T) {
 // TestStoreWindowEvent tests window event storage
 func TestStoreWindowEvent(t *testing.T) {
 	db, _ := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	ruleID := "CORR-001"
 	groupKey := "user:alice"
@@ -339,7 +339,7 @@ func TestDatabaseRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to reopen database: %v", err)
 	}
-	defer db2.Close()
+	defer func() { _ = db2.Close() }()
 
 	// Verify data persisted
 	dequeued, err := db2.DequeueSignals(10)

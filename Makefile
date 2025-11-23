@@ -1,4 +1,4 @@
-.PHONY: build build-arm64 build-amd64 build-all test test-race test-coverage clean install uninstall start stop logs validate stats run deps help
+.PHONY: build build-arm64 build-amd64 build-all test test-race test-coverage lint clean install uninstall start stop logs validate stats run deps help
 
 # Default target
 .DEFAULT_GOAL := help
@@ -48,7 +48,12 @@ test-race:
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
-	$(GOTEST) -cover ./...
+	$(GOTEST) -coverprofile=coverage.out -covermode=atomic ./...
+
+# Run golangci-lint
+lint:
+	@echo "Running golangci-lint..."
+	golangci-lint run
 
 # Clean build artifacts
 clean:
@@ -59,6 +64,7 @@ clean:
 	rm -f *.db
 	rm -f *.db-shm
 	rm -f *.db-wal
+	rm -f coverage.out
 
 # Download dependencies
 deps:
@@ -119,6 +125,7 @@ help:
 	@echo "  make test         - Run tests"
 	@echo "  make test-race    - Run tests with race detector"
 	@echo "  make test-coverage- Run tests with coverage"
+	@echo "  make lint         - Run golangci-lint"
 	@echo ""
 	@echo "Development:"
 	@echo "  make clean        - Clean build artifacts"

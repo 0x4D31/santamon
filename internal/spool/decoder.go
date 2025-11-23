@@ -444,7 +444,7 @@ func (d *Decoder) decompressGZIP(data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to init gzip reader: %w", err)
 	}
-	defer gr.Close()
+	defer func() { _ = gr.Close() }()
 
 	// Use limited reader to prevent zip bombs
 	limitedReader := io.LimitReader(gr, d.maxDecompressedSize)
@@ -463,11 +463,4 @@ func (d *Decoder) decompressGZIP(data []byte) ([]byte, error) {
 	}
 
 	return plain, nil
-}
-
-func headBytes(b []byte, n int) []byte {
-	if len(b) <= n {
-		return b
-	}
-	return b[:n]
 }
