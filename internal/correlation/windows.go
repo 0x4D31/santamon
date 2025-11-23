@@ -30,6 +30,7 @@ type WindowMatch struct {
 	Count       int
 	Events      []map[string]any
 	GroupKey    string
+	Rule        *rules.CorrelationRule // Keep reference to rule for signal generation
 }
 
 // NewWindowManager creates a new correlation window manager
@@ -110,6 +111,7 @@ func (wm *WindowManager) Process(msg *santapb.SantaMessage, correlationRules []*
 				Count:       count,
 				Events:      recentEvents,
 				GroupKey:    groupKey,
+				Rule:        rule.Rule, // Store rule for signal generation
 			})
 
 			if err := wm.db.ReplaceWindowEvents(rule.Rule.ID, groupKey, nil); err != nil {

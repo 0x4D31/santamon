@@ -128,9 +128,25 @@ func (g *Generator) FromWindowMatch(match *correlation.WindowMatch, bootUUID str
 
 	// Build context to mirror single-event signals, using a sample event
 	ctx := map[string]any{
-		"group_key":   match.GroupKey,
 		"event_count": match.Count,
 		"window_type": "correlation",
+	}
+
+	// Include distinct values if count_distinct is configured
+	if match.Rule != nil && match.Rule.CountDistinct != "" {
+		distinctValues := g.extractDistinctValues(match.Events, match.Rule.CountDistinct)
+		if len(distinctValues) > 0 {
+			ctx["distinct_values"] = distinctValues
+			ctx["distinct_field"] = match.Rule.CountDistinct
+		}
+	}
+
+	// Include parsed group_by values for easier reading
+	if match.Rule != nil && len(match.Rule.GroupBy) > 0 && len(match.Events) > 0 {
+		groupedBy := g.extractGroupByValues(match.Events[0], match.Rule.GroupBy)
+		if len(groupedBy) > 0 {
+			ctx["grouped_by"] = groupedBy
+		}
 	}
 
 	if len(match.Events) > 0 {
@@ -290,4 +306,37 @@ func appendMessageContext(ctx map[string]any, msg *santapb.SantaMessage) {
 		ctx["decision"] = v
 	}
 	ctx["kind"] = events.Kind(msg)
+}
+
+// extractDistinctValues extracts all distinct values for the count_distinct field from window events
+func (g *Generator) extractDistinctValues(windowEvents []map[string]any, countDistinctField string) []string {
+	seen := make(map[string]bool)
+	values := make([]string, 0)
+
+	cleanField := strings.TrimPrefix(countDistinctField, "event.")
+
+	for _, evt := range windowEvents {
+		value := events.ExtractField(evt, cleanField)
+		if value != "" && !seen[value] {
+			seen[value] = true
+			values = append(values, value)
+		}
+	}
+
+	return values
+}
+
+// extractGroupByValues extracts the group_by field values from a sample event
+func (g *Generator) extractGroupByValues(event map[string]any, groupByFields []string) map[string]string {
+	values := make(map[string]string)
+
+	for _, field := range groupByFields {
+		cleanField := strings.TrimPrefix(field, "event.")
+		value := events.ExtractField(event, cleanField)
+		if value != "" {
+			values[cleanField] = value
+		}
+	}
+
+	return values
 }

@@ -154,9 +154,6 @@ func TestFromWindowMatch(t *testing.T) {
 	}
 
 	// Verify context fields
-	if signal.Context["group_key"] != "user:1000" {
-		t.Errorf("Context group_key = %v, want user:1000", signal.Context["group_key"])
-	}
 	if signal.Context["event_count"] != 2 {
 		t.Errorf("Context event_count = %v, want 2", signal.Context["event_count"])
 	}
@@ -341,5 +338,107 @@ func TestWindowMatchSingleEvent(t *testing.T) {
 	// Should have sample_event for single event
 	if signal.Context["sample_event"] == nil {
 		t.Error("Should have sample_event for single event window")
+	}
+}
+
+func TestFromWindowMatchWithDistinctValues(t *testing.T) {
+	gen := NewGenerator("test-host", nil)
+
+	// Simulate SM-COR-001: accessing multiple credential stores
+	event1 := map[string]any{
+		"file_access": map[string]any{
+			"policy_name": "ChromeCookies",
+			"instigator": map[string]any{
+				"executable": map[string]any{
+					"path": "/usr/bin/suspicious",
+				},
+			},
+		},
+	}
+	event2 := map[string]any{
+		"file_access": map[string]any{
+			"policy_name": "SSHPrivateKeys",
+			"instigator": map[string]any{
+				"executable": map[string]any{
+					"path": "/usr/bin/suspicious",
+				},
+			},
+		},
+	}
+	event3 := map[string]any{
+		"file_access": map[string]any{
+			"policy_name": "KeychainDB",
+			"instigator": map[string]any{
+				"executable": map[string]any{
+					"path": "/usr/bin/suspicious",
+				},
+			},
+		},
+	}
+
+	rule := &rules.CorrelationRule{
+		ID:            "SM-COR-001",
+		CountDistinct: "event.file_access.policy_name",
+		GroupBy:       []string{"event.file_access.instigator.executable.path"},
+	}
+
+	wmatch := &correlation.WindowMatch{
+		RuleID:   "SM-COR-001",
+		Severity: "critical",
+		Title:    "Process touching multiple credential stores",
+		GroupKey: "file_access.instigator.executable.path=/usr/bin/suspicious",
+		Count:    3,
+		Events:   []map[string]any{event1, event2, event3},
+		Rule:     rule,
+	}
+
+	signal := gen.FromWindowMatch(wmatch, "boot-789")
+
+	if signal == nil {
+		t.Fatal("FromWindowMatch returned nil")
+	}
+
+	// Verify distinct_values are included
+	distinctValues, ok := signal.Context["distinct_values"].([]string)
+	if !ok {
+		t.Fatalf("Context distinct_values should be []string, got %T", signal.Context["distinct_values"])
+	}
+	if len(distinctValues) != 3 {
+		t.Errorf("Expected 3 distinct values, got %d: %v", len(distinctValues), distinctValues)
+	}
+
+	// Verify all expected policy names are present
+	expectedPolicies := map[string]bool{
+		"ChromeCookies":   false,
+		"SSHPrivateKeys":  false,
+		"KeychainDB":      false,
+	}
+	for _, val := range distinctValues {
+		if _, exists := expectedPolicies[val]; exists {
+			expectedPolicies[val] = true
+		}
+	}
+	for policy, found := range expectedPolicies {
+		if !found {
+			t.Errorf("Expected policy %s not found in distinct_values: %v", policy, distinctValues)
+		}
+	}
+
+	// Verify distinct_field is included
+	if signal.Context["distinct_field"] != "event.file_access.policy_name" {
+		t.Errorf("Context distinct_field = %v, want event.file_access.policy_name", signal.Context["distinct_field"])
+	}
+
+	// Verify grouped_by is included for easier reading
+	groupedBy, ok := signal.Context["grouped_by"].(map[string]string)
+	if !ok {
+		t.Fatalf("Context grouped_by should be map[string]string, got %T", signal.Context["grouped_by"])
+	}
+	if len(groupedBy) != 1 {
+		t.Errorf("Expected 1 grouped_by value, got %d: %v", len(groupedBy), groupedBy)
+	}
+	if groupedBy["file_access.instigator.executable.path"] != "/usr/bin/suspicious" {
+		t.Errorf("grouped_by[file_access.instigator.executable.path] = %v, want /usr/bin/suspicious",
+			groupedBy["file_access.instigator.executable.path"])
 	}
 }
