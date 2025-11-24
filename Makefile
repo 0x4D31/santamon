@@ -16,20 +16,26 @@ GOTEST=$(GOCMD) test
 GOMOD=$(GOCMD) mod
 GOGET=$(GOCMD) get
 
+# Version info for local builds
+VERSION ?= dev
+COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
+
 # Build the binary
 build:
 	@echo "Building $(BINARY)..."
-	$(GOBUILD) -o $(BUILD_DIR)/$(BINARY) ./cmd/santamon
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY) ./cmd/santamon
 
 # Build for macOS ARM64
 build-arm64:
 	@echo "Building $(BINARY) for darwin/arm64..."
-	GOOS=darwin GOARCH=arm64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY)-arm64 ./cmd/santamon
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-arm64 ./cmd/santamon
 
 # Build for macOS AMD64
 build-amd64:
 	@echo "Building $(BINARY) for darwin/amd64..."
-	GOOS=darwin GOARCH=amd64 $(GOBUILD) -o $(BUILD_DIR)/$(BINARY)-amd64 ./cmd/santamon
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY)-amd64 ./cmd/santamon
 
 # Build all architectures
 build-all: build-arm64 build-amd64
