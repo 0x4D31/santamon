@@ -9,9 +9,10 @@ builds:
     env:
       - CGO_ENABLED=0
     goos:
-      - linux
-      - windows
       - darwin
+    goarch:
+      - amd64
+      - arm64
     ldflags:
       - -s -w
       - -X main.version={{.Version}}
@@ -20,7 +21,6 @@ builds:
 
 archives:
   - formats: [tar.gz]
-    # this name template makes the OS and Arch compatible with the results of `uname`.
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -28,10 +28,6 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    # use zip for windows archives
-    format_overrides:
-      - goos: windows
-        formats: [zip]
 
 checksum:
   name_template: 'checksums.txt'
