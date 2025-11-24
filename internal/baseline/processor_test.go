@@ -226,7 +226,7 @@ func TestProcessMultipleTrackFields(t *testing.T) {
 
 func TestProcessTrackFieldsWithEventPrefix(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	proc := NewProcessor(db)
 	engine, _ := rules.NewEngine()
@@ -274,7 +274,7 @@ func TestProcessTrackFieldsWithEventPrefix(t *testing.T) {
 
 func TestProcessDeduplicationEndToEnd(t *testing.T) {
 	db := setupTestDB(t)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	proc := NewProcessor(db)
 	engine, _ := rules.NewEngine()
