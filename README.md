@@ -56,7 +56,7 @@ Santa Spool → Watcher → Decoder → Rules Engine → Signal Generator → Sh
 **Spool lifecycle:**
 - Spool files with no detections are deleted after processing to keep Santa's spool from filling
 - Files that produced detections are archived to `santa.archive_dir` (default: `/var/lib/santamon/spool_hits`)
-- Signals include the originating spool file name so you can retrieve the archived protobuf if needed
+- Signals include the archived spool path when available so you can retrieve the protobuf if needed
 
 **Process Lineage:**
 - In-memory cache of recent process execution history

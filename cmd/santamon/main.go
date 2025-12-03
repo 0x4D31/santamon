@@ -433,14 +433,11 @@ func runCommand() {
 				log.Printf("Processing file: %s", filePath)
 			}
 
-			spoolFileName := filepath.Base(filePath)
 			spoolArchivePath := ""
 			if cfg.Santa.ArchiveDir != "" {
-				spoolArchivePath = filepath.Join(cfg.Santa.ArchiveDir, spoolFileName)
+				spoolArchivePath = filepath.Join(cfg.Santa.ArchiveDir, filepath.Base(filePath))
 			}
-			spoolContext := map[string]any{
-				"spool_file": spoolFileName,
-			}
+			spoolContext := map[string]any{}
 			if spoolArchivePath != "" {
 				spoolContext["spool_archive_path"] = spoolArchivePath
 			}
