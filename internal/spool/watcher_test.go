@@ -2,10 +2,13 @@ package spool
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
 )
 
 func TestNewWatcher(t *testing.T) {
@@ -351,5 +354,132 @@ func TestWatcherContextCancellation(t *testing.T) {
 		}
 	case <-time.After(100 * time.Millisecond):
 		t.Error("Events channel not closed")
+	}
+}
+
+func TestWatcherStartupRecentFile(t *testing.T) {
+	spoolDir := t.TempDir()
+	newDir := filepath.Join(spoolDir, "new")
+	if err := os.MkdirAll(newDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a file shortly before watcher start (younger than stabilityWait)
+	testFile := filepath.Join(newDir, "recent.pb")
+	if err := os.WriteFile(testFile, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := WatcherOptions{
+		CheckInterval: 10 * time.Millisecond,
+	}
+	w, err := NewWatcherWithOptions(spoolDir, 200*time.Millisecond, opts)
+	if err != nil {
+		t.Fatalf("NewWatcherWithOptions failed: %v", err)
+	}
+	defer func() { _ = w.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	go func() { _ = w.Start(ctx) }()
+
+	select {
+	case path := <-w.Events():
+		if path != testFile {
+			t.Fatalf("Expected path %s, got %s", testFile, path)
+		}
+		if elapsed := time.Since(start); elapsed < 180*time.Millisecond {
+			t.Fatalf("File delivered too soon after startup: %v", elapsed)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for recently-created startup file")
+	}
+}
+
+func TestWatcherStartupBacklogDoesNotBlock(t *testing.T) {
+	spoolDir := t.TempDir()
+	newDir := filepath.Join(spoolDir, "new")
+	if err := os.MkdirAll(newDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create more files than the channel buffer
+	fileCount := 5
+	for i := 0; i < fileCount; i++ {
+		f := filepath.Join(newDir, fmt.Sprintf("file%d.pb", i))
+		if err := os.WriteFile(f, []byte("data"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Ensure they are stable before start
+	time.Sleep(50 * time.Millisecond)
+
+	opts := WatcherOptions{
+		ChannelBuffer: 1, // Force backlog
+		CheckInterval: 10 * time.Millisecond,
+	}
+	w, err := NewWatcherWithOptions(spoolDir, 20*time.Millisecond, opts)
+	if err != nil {
+		t.Fatalf("NewWatcherWithOptions failed: %v", err)
+	}
+	defer func() { _ = w.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	go func() { _ = w.Start(ctx) }()
+
+	seen := make(map[string]bool)
+	timeout := time.After(2 * time.Second)
+	for len(seen) < fileCount {
+		select {
+		case path := <-w.Events():
+			seen[path] = true
+		case <-timeout:
+			t.Fatalf("Timed out waiting for backlog files, saw %d/%d", len(seen), fileCount)
+		}
+	}
+}
+
+func TestWatcherOverflowResyncs(t *testing.T) {
+	spoolDir := t.TempDir()
+	opts := WatcherOptions{
+		CheckInterval: 10 * time.Millisecond,
+	}
+	w, err := NewWatcherWithOptions(spoolDir, 50*time.Millisecond, opts)
+	if err != nil {
+		t.Fatalf("NewWatcherWithOptions failed: %v", err)
+	}
+	defer func() { _ = w.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	go func() { _ = w.Start(ctx) }()
+
+	time.Sleep(50 * time.Millisecond) // allow Start to begin
+
+	newDir := filepath.Join(spoolDir, "new")
+	if err := w.watcher.Remove(newDir); err != nil {
+		t.Fatalf("Failed to remove watch: %v", err)
+	}
+
+	testFile := filepath.Join(newDir, "overflow.pb")
+	if err := os.WriteFile(testFile, []byte("data"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Trigger overflow handling to force rescan
+	go func() {
+		w.watcher.Errors <- fsnotify.ErrEventOverflow
+	}()
+
+	select {
+	case path := <-w.Events():
+		if path != testFile {
+			t.Fatalf("Expected path %s from resync, got %s", testFile, path)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for resynced file after overflow")
 	}
 }
