@@ -8,6 +8,7 @@ agent:
 santa:
   mode: "protobuf"
   spool_dir: "/var/db/santa/spool"
+  archive_dir: "/var/lib/santamon/spool_hits"  # Where to move spool files that produced alerts
   stability_wait: "2s"
 
 rules:

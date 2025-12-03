@@ -53,6 +53,11 @@ Santa Spool → Watcher → Decoder → Rules Engine → Signal Generator → Sh
 5. **Shipper** batches and sends signals to backend via HTTPS with retry logic and circuit breaker
 6. **State DB** persists correlation state, baseline tracking, signal queue, and spool journal
 
+**Spool lifecycle:**
+- Spool files with no detections are deleted after processing to keep Santa's spool from filling
+- Files that produced detections are archived to `santa.archive_dir` (default: `/var/lib/santamon/spool_hits`)
+- Signals include the archived spool path when available so you can retrieve the protobuf if needed
+
 **Process Lineage:**
 - In-memory cache of recent process execution history
 - Enables full process tree context for execution detections
@@ -161,6 +166,7 @@ shipper:
 ```yaml
 santa:
   spool_dir: "/var/db/santa/spool"      # Santa spool location
+  archive_dir: "/var/lib/santamon/spool_hits"  # Archive spool files that produced alerts
   stability_wait: "2s"                  # Wait before reading new files
 
 rules:
