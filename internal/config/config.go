@@ -31,6 +31,7 @@ type AgentConfig struct {
 type SantaConfig struct {
 	Mode          string        `yaml:"mode"`
 	SpoolDir      string        `yaml:"spool_dir"`
+	ArchiveDir    string        `yaml:"archive_dir"`
 	StabilityWait time.Duration `yaml:"stability_wait"`
 }
 
@@ -63,15 +64,15 @@ type WindowsConfig struct {
 
 // ShipperConfig defines signal shipping settings
 type ShipperConfig struct {
-    Endpoint       string          `yaml:"endpoint"`
-    APIKey         string          `yaml:"api_key"`
-    BatchSize      int             `yaml:"batch_size"`
-    FlushInterval  time.Duration   `yaml:"flush_interval"`
-    Timeout        time.Duration   `yaml:"timeout"`
-    Retry          RetryConfig     `yaml:"retry"`
-    FlushOnEnqueue *bool           `yaml:"flush_on_enqueue"`
-    TLSSkipVerify  bool            `yaml:"tls_skip_verify"`
-    Heartbeat      HeartbeatConfig `yaml:"heartbeat"`
+	Endpoint       string          `yaml:"endpoint"`
+	APIKey         string          `yaml:"api_key"`
+	BatchSize      int             `yaml:"batch_size"`
+	FlushInterval  time.Duration   `yaml:"flush_interval"`
+	Timeout        time.Duration   `yaml:"timeout"`
+	Retry          RetryConfig     `yaml:"retry"`
+	FlushOnEnqueue *bool           `yaml:"flush_on_enqueue"`
+	TLSSkipVerify  bool            `yaml:"tls_skip_verify"`
+	Heartbeat      HeartbeatConfig `yaml:"heartbeat"`
 }
 
 // HeartbeatConfig defines agent heartbeat settings
@@ -143,6 +144,9 @@ func (c *Config) applyDefaults() {
 	if c.Santa.SpoolDir == "" {
 		c.Santa.SpoolDir = "/var/db/santa/spool"
 	}
+	if c.Santa.ArchiveDir == "" {
+		c.Santa.ArchiveDir = filepath.Join(c.Agent.StateDir, "spool_hits")
+	}
 	if c.Santa.StabilityWait == 0 {
 		c.Santa.StabilityWait = 2 * time.Second
 	}
@@ -176,14 +180,14 @@ func (c *Config) applyDefaults() {
 	if c.Shipper.BatchSize == 0 {
 		c.Shipper.BatchSize = 100
 	}
-    if c.Shipper.FlushInterval == 0 {
-        c.Shipper.FlushInterval = 30 * time.Second
-    }
-    // Default to immediate flush on enqueue for low-latency alerts
-    if c.Shipper.FlushOnEnqueue == nil {
-        v := true
-        c.Shipper.FlushOnEnqueue = &v
-    }
+	if c.Shipper.FlushInterval == 0 {
+		c.Shipper.FlushInterval = 30 * time.Second
+	}
+	// Default to immediate flush on enqueue for low-latency alerts
+	if c.Shipper.FlushOnEnqueue == nil {
+		v := true
+		c.Shipper.FlushOnEnqueue = &v
+	}
 	if c.Shipper.Timeout == 0 {
 		c.Shipper.Timeout = 10 * time.Second
 	}
@@ -232,6 +236,9 @@ func (c *Config) ValidateWithOptions(skipShipper bool) error {
 	}
 	if !filepath.IsAbs(c.Santa.SpoolDir) {
 		return fmt.Errorf("santa.spool_dir must be an absolute path")
+	}
+	if c.Santa.ArchiveDir != "" && !filepath.IsAbs(c.Santa.ArchiveDir) {
+		return fmt.Errorf("santa.archive_dir must be an absolute path")
 	}
 	if c.Santa.StabilityWait < 0 {
 		return fmt.Errorf("santa.stability_wait cannot be negative")

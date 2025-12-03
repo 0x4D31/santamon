@@ -6,6 +6,7 @@ agent:
 santa:
   mode: "json"
   spool_dir: "/var/db/santa/spool"
+  archive_dir: "/tmp/santamon/spool_hits"
   stability_wait: "2s"
 
 rules:

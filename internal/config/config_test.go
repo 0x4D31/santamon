@@ -64,6 +64,9 @@ func TestValidConfig(t *testing.T) {
 	if cfg.Santa.SpoolDir != "/var/db/santa/spool" {
 		t.Errorf("Santa.SpoolDir = %v, want /var/db/santa/spool", cfg.Santa.SpoolDir)
 	}
+	if cfg.Santa.ArchiveDir != "/tmp/santamon/spool_hits" {
+		t.Errorf("Santa.ArchiveDir = %v, want /tmp/santamon/spool_hits", cfg.Santa.ArchiveDir)
+	}
 	if cfg.Santa.StabilityWait != 2*time.Second {
 		t.Errorf("Santa.StabilityWait = %v, want 2s", cfg.Santa.StabilityWait)
 	}
@@ -183,6 +186,14 @@ func TestValidateRelativePaths(t *testing.T) {
 				cfg.State.DBPath = "relative/db.db"
 			},
 		},
+		{
+			name:  "relative archive_dir",
+			field: "santa.archive_dir",
+			value: "relative/archive",
+			modifier: func(cfg *Config) {
+				cfg.Santa.ArchiveDir = "relative/archive"
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -291,6 +302,9 @@ func TestApplyDefaults(t *testing.T) {
 	if cfg.Santa.Mode != "protobuf" {
 		t.Errorf("Default Santa.Mode = %v, want protobuf", cfg.Santa.Mode)
 	}
+	if cfg.Santa.ArchiveDir != filepath.Join(cfg.Agent.StateDir, "spool_hits") {
+		t.Errorf("Default Santa.ArchiveDir = %v, want %v", cfg.Santa.ArchiveDir, filepath.Join(cfg.Agent.StateDir, "spool_hits"))
+	}
 	if cfg.Santa.StabilityWait != 2*time.Second {
 		t.Errorf("Default StabilityWait = %v, want 2s", cfg.Santa.StabilityWait)
 	}
@@ -374,6 +388,7 @@ func validTestConfig() *Config {
 		Santa: SantaConfig{
 			Mode:          "json",
 			SpoolDir:      "/tmp/spool",
+			ArchiveDir:    "/tmp/test/spool_hits",
 			StabilityWait: 2 * time.Second,
 		},
 		Rules: RulesConfig{

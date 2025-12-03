@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -278,7 +279,7 @@ func runCommand() {
 	sigGen := signals.NewGenerator(cfg.Agent.ID, lineageStore)
 
 	// Create spool watcher
-	watcher, err := spool.NewWatcher(cfg.Santa.SpoolDir, cfg.Santa.StabilityWait)
+	watcher, err := spool.NewWatcherWithOptions(cfg.Santa.SpoolDir, cfg.Santa.StabilityWait, spool.WatcherOptions{ArchiveDir: cfg.Santa.ArchiveDir})
 	if err != nil {
 		logutil.Error("Failed to create watcher: %v", err)
 		os.Exit(1)
@@ -432,6 +433,20 @@ func runCommand() {
 				log.Printf("Processing file: %s", filePath)
 			}
 
+			spoolFileName := filepath.Base(filePath)
+			spoolArchivePath := ""
+			if cfg.Santa.ArchiveDir != "" {
+				spoolArchivePath = filepath.Join(cfg.Santa.ArchiveDir, spoolFileName)
+			}
+			spoolContext := map[string]any{
+				"spool_file": spoolFileName,
+			}
+			if spoolArchivePath != "" {
+				spoolContext["spool_archive_path"] = spoolArchivePath
+			}
+
+			fileHasSignals := false
+
 			// Decode events from file
 			messages, err := decoder.DecodeEvents(filePath)
 			if err != nil {
@@ -446,7 +461,6 @@ func runCommand() {
 			// Process each event
 			for _, msg := range messages {
 				eventCount++
-
 
 				// Update process lineage store for execution events, when enabled
 				if lineageStore != nil {
@@ -478,6 +492,9 @@ func runCommand() {
 						}
 					}
 
+					sigGen.EnrichSignal(signal, spoolContext)
+					fileHasSignals = true
+
 					if err := ship.EnqueueSignal(signal); err != nil {
 						logutil.Error("Failed to enqueue signal: %v", err)
 					} else {
@@ -498,6 +515,8 @@ func runCommand() {
 					}
 					for _, wmatch := range windowMatches {
 						signal := sigGen.FromWindowMatch(wmatch, msg.GetBootSessionUuid())
+						sigGen.EnrichSignal(signal, spoolContext)
+						fileHasSignals = true
 						if err := ship.EnqueueSignal(signal); err != nil {
 							logutil.Error("Failed to enqueue correlation signal: %v", err)
 						} else {
@@ -527,6 +546,8 @@ func runCommand() {
 						}
 
 						signal := sigGen.FromBaselineMatch(bmatch)
+						sigGen.EnrichSignal(signal, spoolContext)
+						fileHasSignals = true
 						if err := ship.EnqueueSignal(signal); err != nil {
 							logutil.Error("Failed to enqueue baseline signal: %v", err)
 						} else {
@@ -543,8 +564,20 @@ func runCommand() {
 				log.Printf("Warning: Failed to update journal: %v", err)
 			}
 
-			// Note: We intentionally avoid deleting Santa spool files by default.
-			// Leave file lifecycle to Santa or operator processes.
+			// Delete processed files with no signals, archive files that produced alerts
+			if fileHasSignals {
+				if err := watcher.ArchiveFile(filePath); err != nil {
+					log.Printf("Warning: Failed to archive spool file %s: %v", filePath, err)
+				} else if os.Getenv("SANTAMON_DEBUG") == "1" && spoolArchivePath != "" {
+					log.Printf("Archived spool file %s to %s", filePath, spoolArchivePath)
+				}
+			} else {
+				if err := os.Remove(filePath); err != nil && !os.IsNotExist(err) {
+					log.Printf("Warning: Failed to delete spool file %s: %v", filePath, err)
+				} else if os.Getenv("SANTAMON_DEBUG") == "1" {
+					log.Printf("Deleted spool file %s (no signals)", filePath)
+				}
+			}
 
 			if os.Getenv("SANTAMON_DEBUG") == "1" {
 				log.Printf("Processed %d events from %s", len(messages), filePath)
