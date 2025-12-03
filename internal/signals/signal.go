@@ -36,12 +36,9 @@ func (g *Generator) FromRuleMatch(match *rules.Match) *state.Signal {
 		ts = time.Now()
 	}
 
-	targetIdentifier := events.TargetSHA256(match.Message)
-	if targetIdentifier == "" {
-		targetIdentifier = events.TargetPath(match.Message)
-	}
+	identifier := buildRuleMatchIdentifier(match.Message)
 
-	signalID := g.generateSignalID(match.RuleID, ts, g.hostID, targetIdentifier)
+	signalID := g.generateSignalID(match.RuleID, ts, g.hostID, identifier)
 
 	context := map[string]any{}
 	appendMessageContext(context, match.Message)
@@ -224,15 +221,43 @@ func (g *Generator) FromWindowMatch(match *correlation.WindowMatch, bootUUID str
 // generateSignalID creates a deterministic signal ID
 func (g *Generator) generateSignalID(ruleID string, ts time.Time, host, identifier string) string {
 	// Create a deterministic ID based on rule, time, host, and identifier
-	data := fmt.Sprintf("%s|%s|%s|%s",
+	data := fmt.Sprintf("%s|%d|%s|%s",
 		ruleID,
-		ts.Format(time.RFC3339),
+		ts.UnixNano(),
 		host,
 		identifier,
 	)
 
 	hash := sha256.Sum256([]byte(data))
 	return fmt.Sprintf("%x", hash[:16]) // Use first 16 bytes for shorter ID
+}
+
+// buildRuleMatchIdentifier combines target and actor details to reduce ID collisions across
+// multiple processes hitting the same target in a short window.
+func buildRuleMatchIdentifier(msg *santapb.SantaMessage) string {
+	parts := make([]string, 0, 4)
+
+	if h := events.TargetSHA256(msg); h != "" {
+		parts = append(parts, "t="+h)
+	} else if p := events.TargetPath(msg); p != "" {
+		parts = append(parts, "t="+p)
+	}
+
+	if a := events.ActorPath(msg); a != "" {
+		parts = append(parts, "a="+a)
+	}
+	if s := events.ActorSigningID(msg); s != "" {
+		parts = append(parts, "asid="+s)
+	}
+	if d := events.Decision(msg); d != "" {
+		parts = append(parts, "dec="+d)
+	}
+
+	if len(parts) == 0 {
+		return "unknown"
+	}
+
+	return strings.Join(parts, "|")
 }
 
 // FromBaselineMatch creates a signal from a baseline match

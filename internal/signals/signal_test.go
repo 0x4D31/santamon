@@ -216,7 +216,7 @@ func TestGenerateSignalIDDeterministic(t *testing.T) {
 
 func TestGenerateSignalIDUniqueness(t *testing.T) {
 	gen := NewGenerator("test-host", nil)
-	ts := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	ts := time.Date(2025, 1, 1, 12, 0, 0, 12345, time.UTC)
 
 	// Different inputs should produce different IDs
 	tests := []struct {
@@ -242,6 +242,36 @@ func TestGenerateSignalIDUniqueness(t *testing.T) {
 			}
 			ids[id] = true
 		})
+	}
+}
+
+func TestFromRuleMatchDifferentActorIDs(t *testing.T) {
+	gen := NewGenerator("test-host", nil)
+	ts := time.Date(2025, 1, 1, 12, 0, 0, 12345, time.UTC)
+
+	makeMsg := func(actorPath string) *santapb.SantaMessage {
+		return &santapb.SantaMessage{
+			EventTime: timestamppb.New(ts),
+			Event: &santapb.SantaMessage_FileAccess{
+				FileAccess: &santapb.FileAccess{
+					PolicyDecision: santapb.FileAccess_POLICY_DECISION_ALLOWED_AUDIT_ONLY.Enum(),
+					Instigator: &santapb.ProcessInfo{
+						Executable: &santapb.FileInfo{Path: proto.String(actorPath)},
+					},
+					Target: &santapb.FileInfoLight{Path: proto.String("/tmp/secret")},
+				},
+			},
+		}
+	}
+
+	msgA := makeMsg("/usr/bin/actorA")
+	msgB := makeMsg("/usr/bin/actorB")
+
+	sigA := gen.FromRuleMatch(&rules.Match{RuleID: "SM-100", Title: "t", Severity: "high", Message: msgA, Timestamp: ts})
+	sigB := gen.FromRuleMatch(&rules.Match{RuleID: "SM-100", Title: "t", Severity: "high", Message: msgB, Timestamp: ts})
+
+	if sigA.ID == sigB.ID {
+		t.Fatalf("expected different IDs for different actors, got same: %s", sigA.ID)
 	}
 }
 
@@ -409,9 +439,9 @@ func TestFromWindowMatchWithDistinctValues(t *testing.T) {
 
 	// Verify all expected policy names are present
 	expectedPolicies := map[string]bool{
-		"ChromeCookies":   false,
-		"SSHPrivateKeys":  false,
-		"KeychainDB":      false,
+		"ChromeCookies":  false,
+		"SSHPrivateKeys": false,
+		"KeychainDB":     false,
 	}
 	for _, val := range distinctValues {
 		if _, exists := expectedPolicies[val]; exists {
