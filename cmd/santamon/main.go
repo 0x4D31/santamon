@@ -417,22 +417,6 @@ func runCommand() {
 				logutil.Success("Shutdown complete")
 				return
 			}
-			// Skip if we've already processed this file (journaled)
-			if je, _ := db.GetJournalEntry(filePath); je != nil {
-				if info, err := os.Stat(filePath); err == nil {
-					// If file hasn't changed since last processed, skip
-					if !info.ModTime().After(je.ProcessedTS) {
-						if os.Getenv("SANTAMON_DEBUG") == "1" {
-							log.Printf("Skipping already-processed spool file: %s", filePath)
-						}
-						continue
-					}
-				}
-			}
-			if os.Getenv("SANTAMON_DEBUG") == "1" {
-				log.Printf("Processing file: %s", filePath)
-			}
-
 			spoolArchivePath := ""
 			if cfg.Santa.ArchiveDir != "" {
 				spoolArchivePath = filepath.Join(cfg.Santa.ArchiveDir, filepath.Base(filePath))
@@ -442,12 +426,37 @@ func runCommand() {
 				spoolContext["spool_archive_path"] = spoolArchivePath
 			}
 
+			// Skip if we've already processed this file (journaled) and clean it up
+			if je, _ := db.GetJournalEntry(filePath); je != nil {
+				if info, err := os.Stat(filePath); err == nil {
+					// If file hasn't changed since last processed, archive/delete it
+					if !info.ModTime().After(je.ProcessedTS) {
+						if err := watcher.ArchiveFile(filePath); err != nil {
+							log.Printf("Warning: Failed to archive already-processed spool file %s: %v", filePath, err)
+						} else if os.Getenv("SANTAMON_DEBUG") == "1" {
+							if spoolArchivePath != "" {
+								log.Printf("Archived already-processed spool file %s to %s", filePath, spoolArchivePath)
+							} else {
+								log.Printf("Deleted already-processed spool file: %s", filePath)
+							}
+						}
+						continue
+					}
+				}
+			}
+			if os.Getenv("SANTAMON_DEBUG") == "1" {
+				log.Printf("Processing file: %s", filePath)
+			}
+
 			fileHasSignals := false
 
 			// Decode events from file
 			messages, err := decoder.DecodeEvents(filePath)
 			if err != nil {
 				log.Printf("Failed to decode file: %v", err)
+				if err := watcher.ArchiveFile(filePath); err != nil {
+					log.Printf("Warning: Failed to archive unreadable spool file %s: %v", filePath, err)
+				}
 				// Update journal even on error to avoid reprocessing
 				if err := db.UpdateJournal(filePath, 0); err != nil {
 					log.Printf("Warning: Failed to update journal: %v", err)
