@@ -2,6 +2,7 @@ package spool
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -95,13 +96,15 @@ func (w *Watcher) Events() <-chan string {
 
 // Start begins watching for new files
 func (w *Watcher) Start(ctx context.Context) error {
-	// First, process any existing files in the spool
-	if err := w.processExistingFiles(); err != nil {
-		logutil.Warn("Failed to process existing files: %v", err)
-	}
-
 	// Track file modification times for stability check
 	fileStability := make(map[string]time.Time)
+
+	// First, process any existing files in the spool
+	if existing, err := w.processExistingFiles(); err != nil {
+		logutil.Warn("Failed to process existing files: %v", err)
+	} else {
+		w.seedExistingFiles(existing, fileStability)
+	}
 
 	// Start stability checker goroutine
 	stabilityTicker := time.NewTicker(w.checkInterval)
@@ -126,24 +129,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 			// Only care about Create and Write events
 			if event.Op&fsnotify.Create == fsnotify.Create ||
 				event.Op&fsnotify.Write == fsnotify.Write {
-				w.stabMu.Lock()
-				// Check if we're at max capacity
-				if len(fileStability) >= w.maxPendingFiles {
-					log.Printf("Warning: max pending files reached (%d), dropping oldest", w.maxPendingFiles)
-					// Remove oldest entry
-					var oldest string
-					var oldestTime time.Time
-					for p, t := range fileStability {
-						if oldest == "" || t.Before(oldestTime) {
-							oldest = p
-							oldestTime = t
-						}
-					}
-					delete(fileStability, oldest)
-				}
-				// Mark file as recently modified
-				fileStability[event.Name] = time.Now()
-				w.stabMu.Unlock()
+				w.trackFile(fileStability, event.Name, time.Now())
 			}
 
 		case err, ok := <-w.watcher.Errors:
@@ -151,6 +137,9 @@ func (w *Watcher) Start(ctx context.Context) error {
 				return fmt.Errorf("watcher errors channel closed")
 			}
 			log.Printf("Watcher error: %v", err)
+			if errors.Is(err, fsnotify.ErrEventOverflow) {
+				w.resyncFiles(fileStability)
+			}
 
 		case <-stabilityTicker.C:
 			// Check for stable files
@@ -242,14 +231,20 @@ func (w *Watcher) copyFile(src, dst string) error {
 	return dstFile.Sync()
 }
 
+type existingFile struct {
+	path    string
+	modTime time.Time
+}
+
 // processExistingFiles scans the spool directory for existing files
-func (w *Watcher) processExistingFiles() error {
+func (w *Watcher) processExistingFiles() ([]existingFile, error) {
 	newDir := filepath.Join(w.spoolDir, "new")
 	entries, err := os.ReadDir(newDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var existing []existingFile
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -264,15 +259,62 @@ func (w *Watcher) processExistingFiles() error {
 			continue
 		}
 
-		if time.Since(info.ModTime()) >= w.stabilityWait {
-			w.eventChan <- path
-		}
+		existing = append(existing, existingFile{path: path, modTime: info.ModTime()})
 	}
 
-	return nil
+	return existing, nil
 }
 
 // Close stops the watcher and releases resources
 func (w *Watcher) Close() error {
 	return w.watcher.Close()
+}
+
+// seedExistingFiles enqueues existing files without blocking the watcher startup.
+func (w *Watcher) seedExistingFiles(existing []existingFile, fileStability map[string]time.Time) {
+	now := time.Now()
+	for _, f := range existing {
+		age := now.Sub(f.modTime)
+		if age >= w.stabilityWait {
+			select {
+			case w.eventChan <- f.path:
+				continue
+			default:
+			}
+		}
+		w.trackFile(fileStability, f.path, f.modTime)
+	}
+}
+
+// resyncFiles rescans the spool directory and seeds any files that may have been missed (e.g., after fsnotify overflow).
+func (w *Watcher) resyncFiles(fileStability map[string]time.Time) {
+	existing, err := w.processExistingFiles()
+	if err != nil {
+		logutil.Warn("Failed to resync spool directory: %v", err)
+		return
+	}
+	w.seedExistingFiles(existing, fileStability)
+}
+
+// trackFile records a path in the stability map, respecting the maxPendingFiles limit.
+func (w *Watcher) trackFile(fileStability map[string]time.Time, path string, modTime time.Time) {
+	w.stabMu.Lock()
+	defer w.stabMu.Unlock()
+
+	// Check if we're at max capacity
+	if len(fileStability) >= w.maxPendingFiles {
+		log.Printf("Warning: max pending files reached (%d), dropping oldest", w.maxPendingFiles)
+		// Remove oldest entry
+		var oldest string
+		var oldestTime time.Time
+		for p, t := range fileStability {
+			if oldest == "" || t.Before(oldestTime) {
+				oldest = p
+				oldestTime = t
+			}
+		}
+		delete(fileStability, oldest)
+	}
+	// Mark file as recently modified
+	fileStability[path] = modTime
 }
